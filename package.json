@@ -1,0 +1,21 @@
+{
+  "name": "@dmail/signal",
+  "version": "1.0.0",
+  "license": "MIT",
+  "engines": {
+    "node": ">=8.0.0"
+  },
+  "devDependencies": {
+    "@dmail/ensure": "*",
+    "eslint": "^3.16.1",
+    "eslint-plugin-import": "^2.2.0",
+    "symlink": "^2.1.0"
+  },
+  "scripts": {
+    "symlink": "symlink ../ --execute"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/dmail/signal"
+  }
+}
