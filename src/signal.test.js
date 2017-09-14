@@ -1,6 +1,6 @@
 // https://github.com/cowboy/jquery-throttle-debounce/blob/master/unit/unit.js
 
-import {createSignal} from './index.js'
+import {createSignal} from './signal.js'
 import {
 	ensure,
 	expose,
@@ -117,8 +117,8 @@ const test = ensure('signal', {
 			source.emit()
 			assertCalledOnce(a)
 			assertCalledOnce(b)
-			assert(source.has(listenerA) === false)
-			assert(source.has(listenerB) === true)
+			assertEquals(source.has(listenerA), false)
+			assertEquals(source.has(listenerB), true)
 		}
 		// at the end
 		{
@@ -132,8 +132,8 @@ const test = ensure('signal', {
 			source.emit()
 			assertCalledOnce(a)
 			assertCalledOnce(b)
-			assert(source.has(listenerA) === true)
-			assert(source.has(listenerB) === false)
+			assertEquals(source.has(listenerA), true)
+			assertEquals(source.has(listenerB), false)
 		}
 		// in the middle
 		{
@@ -151,9 +151,9 @@ const test = ensure('signal', {
 			assertCalledOnce(a)
 			assertCalledOnce(b)
 			assertCalledOnce(c)
-			assert(source.has(listenerA) === true)
-			assert(source.has(listenerB) === false)
-			assert(source.has(listenerC) === true)
+			assertEquals(source.has(listenerA), true)
+			assertEquals(source.has(listenerB), false)
+			assertEquals(source.has(listenerC), true)
 		}
 	},
 	// "a listener can return false to prevent run of subsequent listener"(signal)
