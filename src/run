@@ -1,2 +1,0 @@
-babel-node --ignore '/node_modules/(?!@dmail)' ./signal.test.js
-https://github.com/facebookincubator/create-react-app/issues/1125#issuecomment-267920849

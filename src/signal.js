@@ -5,14 +5,16 @@
 
 const recursiveMessage = `emit called recursively, its often not desired.
 If you know what you're doing pass recursiveRule: 'off' option to signal`
-const defaultRecursiveRule = 'warn'
+const defaultRecursiveRule = "warn"
 
-export const createSignal = ({
-	memorize = false,
-	recursiveRule = defaultRecursiveRule, // warn, error, off
-	listened,
-	args: curriedArgs = [],
-} = {}) => {
+export const createSignal = (
+	{
+		memorize = false,
+		recursiveRule = defaultRecursiveRule, // warn, error, off
+		listened,
+		args: curriedArgs = []
+	} = {}
+) => {
 	const signal = {}
 
 	let memorizedArgs = null
@@ -44,14 +46,12 @@ export const createSignal = ({
 	let currentListenerPreventedReason
 	let currentListenerPreventNext
 	let currentListenerPreventNextReason
-	const isListened = () => listeners.some(
-		(listener) => listener.isEnabled()
-	)
-	const has = (listener) => listeners.includes(listener)
+	const isListened = () => listeners.some(listener => listener.isEnabled())
+	const has = listener => listeners.includes(listener)
 	let unlistened
-	const listen = (fn, {once = false} = {}) => {
+	const listen = (fn, { once = false } = {}) => {
 		// prevent duplicate
-		if (listeners.some((listener) => listener.fn === fn)) {
+		if (listeners.some(listener => listener.fn === fn)) {
 			return false
 		}
 
@@ -66,7 +66,7 @@ export const createSignal = ({
 		}
 		const isEnabled = () => enabled
 		const isDisabled = () => enabled === false
-		const remove = (reason) => {
+		const remove = reason => {
 			let index = listeners.indexOf(listener)
 			if (index > -1) {
 				currentListenerRemoved = true
@@ -80,39 +80,36 @@ export const createSignal = ({
 			}
 			return false
 		}
-		const prevent = (reason) => {
+		const prevent = reason => {
 			currentListenerPrevented = true
 			currentListenerPreventedReason = reason
 		}
-		const preventNext = (reason) => {
+		const preventNext = reason => {
 			currentListenerPreventNext = true
 			currentListenerPreventNextReason = reason
 		}
 
 		const run = (...args) => {
 			if (isDisabled()) {
-				prevent('disabled')
+				prevent("disabled")
 				return
 			}
 			if (once) {
-				remove('once')
+				remove("once")
 			}
 			return fn(...args)
 		}
 
-		Object.assign(
-			listener,
-			{
-				disable,
-				enable,
-				isEnabled,
-				isDisabled,
-				run,
-				remove,
-				prevent,
-				preventNext,
-			}
-		)
+		Object.assign(listener, {
+			disable,
+			enable,
+			isEnabled,
+			isDisabled,
+			run,
+			remove,
+			prevent,
+			preventNext
+		})
 
 		listeners.push(listener)
 		if (listeners.length === 1 && listened) {
@@ -124,12 +121,12 @@ export const createSignal = ({
 
 		return listener
 	}
-	const listenOnce = (fn) => listen(fn, {once: true})
+	const listenOnce = fn => listen(fn, { once: true })
 	const clear = () => {
 		forget()
 		listeners.length = 0
 	}
-	const stop = (reason) => {
+	const stop = reason => {
 		currentListenerPreventNext = true
 		currentListenerPreventNextReason = reason
 	}
@@ -140,10 +137,9 @@ export const createSignal = ({
 			return false
 		}
 		if (dispatching) {
-			if (recursiveRule === 'warn') {
+			if (recursiveRule === "warn") {
 				console.warn(recursiveMessage)
-			}
-			else if (recursiveRule === 'error') {
+			} else if (recursiveRule === "error") {
 				throw new Error(recursiveMessage)
 			}
 		}
@@ -173,7 +169,7 @@ export const createSignal = ({
 
 			if (currentListenerValue === false && currentListenerPreventNext === false) {
 				currentListenerPreventNext = true
-				currentListenerPreventNextReason = 'returned false'
+				currentListenerPreventNextReason = "returned false"
 			}
 
 			executions.push({
@@ -183,7 +179,7 @@ export const createSignal = ({
 				preventedReason: currentListenerPreventedReason,
 				preventNext: currentListenerPreventNext,
 				preventNextReason: currentListenerPreventNextReason,
-				value: currentListenerValue,
+				value: currentListenerValue
 			})
 
 			if (currentListenerPreventNext) {
@@ -202,24 +198,21 @@ export const createSignal = ({
 		return executions
 	}
 
-	Object.assign(
-		signal,
-		{
-			remember,
-			forget,
-			enable,
-			disable,
-			isEnabled,
-			isDisabled,
-			isListened,
-			has,
-			listen,
-			listenOnce,
-			stop,
-			clear,
-			emit,
-		}
-	)
+	Object.assign(signal, {
+		remember,
+		forget,
+		enable,
+		disable,
+		isEnabled,
+		isDisabled,
+		isListened,
+		has,
+		listen,
+		listenOnce,
+		stop,
+		clear,
+		emit
+	})
 
 	return signal
 }

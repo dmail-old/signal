@@ -2,5 +2,6 @@ language: node_js
 node_js:
   - "8"
 script:
- - npm cache clean --force
- - npm run test
+ - npm run test-cover
+after_success:
+ - npm run test-cover-upload
