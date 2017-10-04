@@ -1,57 +1,183 @@
+// @dmail/test/src/actions.js is more or less equivalent to
+// http://folktale.origamitower.com/api/v2.0.0/en/folktale.result.html
+// it will be externalized in @dmail/action & @dmail/ensure
+// will be renamed @dmail/expect and provide many expectation
+// as shown below
+
 // https://github.com/cowboy/jquery-throttle-debounce/blob/master/unit/unit.js
 
 import { createSignal } from "./signal.js"
-import {
-	isNotTrue,
-	isNotFalse,
-	isNotAFunction,
-	isNotAnObject,
-	spy,
-	wasCalled,
-	wasNotCalledOnce,
-	wasNotCalledTwice,
-	wasCalledWithoutArguments,
-	wasCalledWithArgumentsDifferentFrom
-} from "@dmail/ensure"
+import { spy } from "@dmail/ensure"
+
+import { all, fromFunction } from "@dmail/action"
+
+const createFailedTypeMessage = (value, actual, expected) => {
+	const prefix = type => {
+		if (type === "null" || type === "undefined") {
+			return type
+		}
+		const firstLetter = type[0].toLowerCase()
+		if (["a", "e", "i", "o", "u"].includes(firstLetter)) {
+			return `an ${type}`
+		}
+		return `a ${type}`
+	}
+
+	return `expect ${prefix(expected)} but got ${prefix(actual)}`
+}
+const expectType = (value, expectedType) =>
+	fromFunction(({ fail, pass }) => {
+		const actualType = typeof value
+		if (actualType !== expectedType) {
+			return fail(createFailedTypeMessage(value, actualType, expectedType))
+		}
+		return pass()
+	})
+const expectFunction = value => expectType(value, "function")
+const expectObject = value => expectType(value, "object")
+
+const createCalledExactlyFailedMessage = (spy, actual, expected) => {
+	let message
+
+	if (expected === 0) {
+		message = `do not expect ${spy} to be called`
+	} else if (expected === 1) {
+		message = `expect ${spy} to be called once`
+	} else if (expected === 2) {
+		message = `expect ${spy} to be called twice`
+	} else {
+		message = `expect ${spy} to be called exactly ${expected} times`
+	}
+
+	if (actual === 0) {
+		message += "but it was never called"
+	} else if (actual === 1) {
+		message += "but it was called once"
+	} else if (actual === 2) {
+		message += "but it was called twice"
+	} else {
+		message += `bit it was called ${actual} times`
+	}
+
+	return message
+}
+
+const expectIs = (actual, expected) =>
+	fromFunction(({ fail, pass }) => {
+		if (actual !== expected) {
+			return fail(`expect ${actual} to be ${expected}`)
+		}
+		return pass()
+	})
+const expectTrue = actual => expectIs(actual, true)
+const expectFalse = actual => expectIs(actual, false)
+// const expectEmptyString = actual => expectIs(actual, '')
+// const expectZero = actual => expectIs(actual, 0)
+// const expectNull = actual => expectIs(actual, null)
+// const expectUndefined = actual => expectIs(actual, undefined)
+
+// think deepEquals
+const expectEquals = (actual, expected) => fromFunction(({ fail, pass }) => {})
+
+const expectCalledExactly = (spy, expectedCallCount) =>
+	fromFunction(({ pass, fail }) => {
+		const actualCallCount = spy.getCallCount()
+		if (actualCallCount !== expectedCallCount) {
+			return fail(createCalledExactlyFailedMessage(spy, actualCallCount, expectedCallCount))
+		}
+		return pass()
+	})
+const expectNotCalled = spy => expectCalledExactly(spy, 0)
+
+const expectCalled = call =>
+	fromFunction(({ fail, pass }) => {
+		if (call.wasCalled() === false) {
+			return fail(`expect ${call} to be called but was not`)
+		}
+		return pass()
+	})
+
+const createFailedArityMessage = (call, actual, expected) => {
+	let message
+
+	if (expected === 0) {
+		message = `expect ${call} to be called without argument`
+	} else if (expected === 1) {
+		message = `expect ${call} to be called with one argument`
+	} else if (expected === 2) {
+		message = `expect ${call} to be called with two argument`
+	} else {
+		message = `expect ${call} to be called with exactly ${expected} argument`
+	}
+
+	if (actual === 0) {
+		message += "but it was called without argument"
+	} else if (actual === 1) {
+		message += "but it was called with one argument"
+	} else if (actual === 2) {
+		message += "but it was called with two argument"
+	} else {
+		message += `but it was called with ${actual} argument`
+	}
+
+	return message
+}
+const expectArity = (call, expectedArity) =>
+	fromFunction(({ fail, pass }) => {
+		const actualArity = call.getArguments()
+		if (actualArity !== expectedArity) {
+			return fail(createFailedArityMessage(call, actualArity, expectedArity))
+		}
+		return pass()
+	})
+
+const expectCalledWithArity = (call, expectedArity) =>
+	expectCalled(call).then(() => expectArity(call, expectedArity))
+const expectCalledWithoutArgument = call => expectCalledWithArity(call, 0)
+
+const expectCalledExactlyWithoutArgument = (spy, expectedCallCount) =>
+	expectCalledExactly(spy, expectedCallCount).then(() =>
+		all(spy.getCalls().map(call => expectCalledWithoutArgument(call)))
+	)
+const expectCalledOnceWithoutArgument = spy => expectCalledExactlyWithoutArgument(spy, 1)
+const expectCalledTwiceWithoutArgument = spy => expectCalledExactlyWithoutArgument(spy, 2)
+
+const expectCalledWith = (call, ...expectedArgs) =>
+	expectCalled(call).then(() => {
+		expectEquals(call.getArguments(), expectedArgs)
+	})
+const expectCalledExactlyWith = (spy, expectedCallCount, ...expectedArgs) =>
+	expectCalledExactly(spy, expectedCallCount).then(() => {
+		all(spy.getCalls().map(call => expectCalledWith(call, ...expectedArgs)))
+	})
+const expectCalledOnceWith = (spy, ...expectedArgs) =>
+	expectCalledExactlyWith(spy, 0, ...expectedArgs)
 
 export default ensure => {
-	ensure("signal is a function", ({ fail, pass }) => {
-		if (isNotAFunction(createSignal)) {
-			return fail("createSignal must be a function")
-		}
-		return pass()
-	})
+	ensure("signal is a function", () => expectFunction(createSignal))
 
-	ensure("listen returns an object", ({ fail, pass }) => {
-		const listener = createSignal().listen(() => {})
-		if (isNotAnObject(listener)) {
-			return fail("signal.listen must return an object")
-		}
-		return pass()
-	})
+	ensure("listen returns an object", () => expectObject(createSignal().listen(() => {})))
 
-	ensure("listen triggers listened", ({ fail, pass }) => {
+	ensure("listen triggers listened", () => {
 		const unlistened = spy()
 		const listened = spy(() => unlistened)
 		const source = createSignal({
 			listened
 		})
 		const listener = source.listen(() => {})
-		if (wasNotCalledOnce(listened)) {
-			return fail("listen must call listened when it's the first listener")
-		}
-		listener.remove()
-		if (wasNotCalledOnce(unlistened)) {
-			return fail("listen return function must be called when listener is removed")
-		}
-		source.listen(() => {})
-		if (wasNotCalledTwice(listened)) {
-			return fail("listen must call listened every time a first listener is added")
-		}
-		return pass()
+
+		return expectCalledOnceWithoutArgument(listened)
+			.then(() => {
+				listener.remove()
+				return expectCalledOnceWithoutArgument(unlistened)
+			})
+			.then(() => {
+				source.listen(() => {})
+				return expectCalledTwiceWithoutArgument(listened)
+			})
 	})
 
-	ensure("listen call immeditaly previously emited args with memorize: true", ({ fail, pass }) => {
+	ensure("listen call immeditaly previously emited args with memorize: true", () => {
 		const listener = spy()
 		const source = createSignal({
 			memorize: true
@@ -59,47 +185,30 @@ export default ensure => {
 		const args = [0, 1]
 		source.emit(...args)
 		source.listen(listener)
-		if (wasNotCalledOnce(listener)) {
-			return fail("listen must call listener with memorize option")
-		}
-		if (wasCalledWithArgumentsDifferentFrom(listener, ...args)) {
-			return fail("listen must call listener with previous args with memorize option")
-		}
-		return pass()
+
+		return expectCalledOnceWith(listener, ...args)
 	})
 
-	ensure("listenOnce remove the listener before calling it", ({ fail, pass }) => {
+	ensure("listenOnce remove the listener before calling it", () => {
 		const source = createSignal()
 		const fn = spy()
 		source.listenOnce(fn)
 		source.emit()
 		source.emit()
-		if (wasNotCalledOnce(fn)) {
-			return fail("once must call listener once")
-		}
-		return pass()
+		return expectCalledOnceWithoutArgument(fn)
 	})
 
-	ensure("emit call listener with args", ({ fail, pass }) => {
+	ensure("emit call listener with args", () => {
 		const source = createSignal()
 		const fn = spy()
 		const value = 1
 		source.listen(fn)
 		source.emit(value)
 
-		if (wasNotCalledOnce(fn)) {
-			return fail("emit must call listener")
-		}
-		if (wasCalledWithoutArguments(fn)) {
-			return fail("emit must propagate args to listener")
-		}
-		if (wasCalledWithArgumentsDifferentFrom(fn, value)) {
-			return fail("emit must propagate emitted args to listener")
-		}
-		return pass()
+		return expectCalledOnceWith(fn, value)
 	})
 
-	ensure("emit call all listeners", ({ fail, pass }) => {
+	ensure("emit call all listeners", () => {
 		const source = createSignal()
 		const value = 1
 		const firstSpy = spy()
@@ -108,55 +217,42 @@ export default ensure => {
 		source.listen(secondSpy)
 		source.emit(value)
 
-		if (wasNotCalledOnce(firstSpy) || wasNotCalledOnce(secondSpy)) {
-			return fail("emit must call all listeners")
-		}
-		return pass()
+		return all([expectCalledOnceWith(firstSpy, value), expectCalledOnceWith(secondSpy, value)])
 	})
 
 	// "emit returns a list of listener result"(signal),
 
-	ensure("emit does not call disabled listener", ({ fail, pass }) => {
+	ensure("emit does not call disabled listener", () => {
 		const source = createSignal()
 		const fn = spy()
 		const listener = source.listen(fn)
 		listener.disable()
-		if (isNotTrue(listener.isDisabled())) {
-			return fail("disabled listener.isDisabled() must return true")
-		}
-		if (isNotFalse(listener.isEnabled())) {
-			return fail("disabled listener.isEnabled() must return false")
-		}
-		source.emit()
-		if (wasCalled(fn)) {
-			return fail("disabled listener must not be called")
-		}
-		return pass()
+
+		return all([expectTrue(listener.isDisabled()), expectFalse(listener.isEnabled())]).then(() => {
+			source.emit()
+			return expectNotCalled(fn)
+		})
 	})
 
 	// "execution state is prevented & stateReason is disabled for disabled listener"
 
-	ensure("isListened", ({ fail, pass }) => {
+	ensure("isListened", () => {
 		const source = createSignal()
-		if (isNotFalse(source.isListened())) {
-			return fail("source.isListened must be false when not listened")
-		}
-		const listener = source.listen(() => {})
-		if (isNotTrue(source.isListened())) {
-			return fail("source.isListened must be true when listened")
-		}
-		listener.disable()
-		if (isNotFalse(source.isListened())) {
-			return fail("source.isListened must be false when listened by disabled listener")
-		}
-		return pass()
+
+		return expectFalse(source.isListened()).then(() => {
+			const listener = source.listen(() => {})
+			return expectTrue(source.isListened()).then(() => {
+				listener.disable()
+				return expectFalse(source.isListened())
+			})
+		})
 	})
 
 	// "duplicate listener are ignored"(signal)
 
 	// "error is thrown when recursively emiting"(signal)
 
-	ensure("listener.remove called on first listener during emit", ({ fail, pass }) => {
+	ensure("listener.remove called on first listener during emit", () => {
 		let firstListener
 		const a = spy(() => firstListener.remove())
 		const b = spy()
@@ -166,16 +262,10 @@ export default ensure => {
 		source.emit()
 		source.emit()
 
-		if (wasNotCalledOnce(a)) {
-			return fail("first listener removed must be called once")
-		}
-		if (wasNotCalledTwice(b)) {
-			return fail("listener after first listener must be called twice")
-		}
-		return pass()
+		return all([expectCalledOnceWithoutArgument(a), expectCalledTwiceWithoutArgument(b)])
 	})
 
-	ensure("listener.remove called on last listener during emit", ({ fail, pass }) => {
+	ensure("listener.remove called on last listener during emit", () => {
 		let lastListener
 		const a = spy()
 		const b = spy(() => lastListener.remove())
@@ -185,16 +275,10 @@ export default ensure => {
 		source.emit()
 		source.emit()
 
-		if (wasNotCalledTwice(a)) {
-			return fail("first listener must be called twice")
-		}
-		if (wasNotCalledOnce(b)) {
-			return fail("last removed listener must be called once")
-		}
-		return pass()
+		return all([expectCalledTwiceWithoutArgument(a), expectCalledOnceWithoutArgument(b)])
 	})
 
-	ensure("listener.remove called on middle listener during emit", ({ fail, pass }) => {
+	ensure("listener.remove called on middle listener during emit", () => {
 		let middleListener
 		const a = spy()
 		const b = spy(() => middleListener.remove())
@@ -206,16 +290,11 @@ export default ensure => {
 		source.emit()
 		source.emit()
 
-		if (wasNotCalledTwice(a)) {
-			return fail("first listener must be called twice")
-		}
-		if (wasNotCalledOnce(b)) {
-			return fail("middle remove listener must be called once")
-		}
-		if (wasNotCalledTwice(c)) {
-			return fail("last listener must be called twice")
-		}
-		return pass()
+		return all([
+			expectCalledTwiceWithoutArgument(a),
+			expectCalledOnceWithoutArgument(b),
+			expectCalledTwiceWithoutArgument(c)
+		])
 	})
 
 	// "a listener can return false to prevent run of subsequent listener"(signal)
