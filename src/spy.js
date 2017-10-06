@@ -1,7 +1,7 @@
 const nowMs = () => Number(new Date())
 
 let id = 0
-const createCall = () => {
+const createCall = (spy, index) => {
 	let called = false
 	let thisValue
 	let temporalOrder
@@ -40,6 +40,18 @@ const createCall = () => {
 	const wasCalledBefore = otherCall => temporalOrder > otherCall.getTemporalOrder()
 
 	Object.assign(call, {
+		toString: () => {
+			if (index === 0) {
+				return `${spy} first call`
+			}
+			if (index === 1) {
+				return `${spy} second call`
+			}
+			if (index === 2) {
+				return `${spy} third call`
+			}
+			return `${spy} call n°${index}`
+		},
 		then,
 		settle,
 		getDuration,
@@ -54,24 +66,26 @@ const createCall = () => {
 	return call
 }
 
-export const spy = fn => {
+export const createSpy = fn => {
 	const calls = []
 	let callCount = 0
 	let currentCall
+	let spy
 
 	const getCall = index => {
 		if (index in calls) {
 			return calls[index]
 		}
-		const call = createCall()
+		const call = createCall(spy, index)
 		calls[index] = call
 		return call
 	}
 	const getCallCount = () => callCount
 	const getFirstCall = () => getCall(0)
+	const getCalls = () => calls
 	const getLastCall = () => calls.reverse().find(call => call.wasCalled()) || calls[0]
 
-	const theSpy = function() {
+	spy = function() {
 		const theCall = currentCall
 		callCount++
 		currentCall = getCall(callCount) // create the next call right now so that we measure ms between each calls
@@ -96,13 +110,20 @@ export const spy = fn => {
 		calls
 	}
 
-	Object.assign(theSpy, {
+	Object.assign(spy, {
+		toString: () => {
+			if (fn && fn.name) {
+				return `${fn.name} spy`
+			}
+			return `anonymous spy`
+		},
 		state,
 		getCall,
 		getCallCount,
+		getCalls,
 		getFirstCall,
 		getLastCall
 	})
 
-	return theSpy
+	return spy
 }
