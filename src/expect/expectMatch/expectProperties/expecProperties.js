@@ -1,5 +1,5 @@
 import { expectMatch, createMatcher, createExpectFromMatcher } from "../expectMatch.js"
-import { failed, collect, any, passed } from "../../expect.js"
+import { failed, all, any, passed } from "../../expect.js"
 import { expectObject, expectFunction } from "../../expectType/expectType.js"
 
 const compareProperties = (actual, expected, { allowExtra = false, allowMissing = false }) =>
@@ -24,7 +24,7 @@ const compareProperties = (actual, expected, { allowExtra = false, allowMissing 
 			})
 		}
 
-		return collect(propertyExpectations)
+		return all(propertyExpectations)
 	})
 
 const mapObject = (object, fn) => {

@@ -8,11 +8,10 @@
 // https://github.com/cowboy/jquery-throttle-debounce/blob/master/unit/unit.js
 
 // il faut encore créer deux helpers :
-// describe qui permet de créer une liste de tests qu'on veut run
-// (et on pourra collect ou all selon qu'on veut récup tout ce qui fail ou juste le premier qui fail)
-// et ensure qui est juste une action qui logue sa description avant de run la fonction associée
-// ensuite si on veut run le test il suffirait de faire test() et chaque ensure
-// serais appelé
+// describe qui permet de créer une liste de tests qu'on veut run et dont on va collect les failures
+// ensuite on peut run juste en faisant const test = describe(); test()
+// cela log comment se déroule les tests
+// on se servira ensuite de ça tel quel lorsqu'on run plusieurs fichier
 
 import { createSignal } from "./signal.js"
 import { spy } from "./spy.js"
