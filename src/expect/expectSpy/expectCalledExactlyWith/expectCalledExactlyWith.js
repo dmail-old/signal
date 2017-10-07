@@ -8,4 +8,4 @@ export const expectCalledExactlyWith = (spy, expectedCallCount, ...expectedArgs)
 		all(spy.getCalls().map(call => expectCalledWith(call, ...expectedArgs)))
 	)
 export const expectCalledOnceWith = (spy, ...expectedArgs) =>
-	expectCalledExactlyWith(spy, 0, ...expectedArgs)
+	expectCalledExactlyWith(spy, 1, ...expectedArgs)

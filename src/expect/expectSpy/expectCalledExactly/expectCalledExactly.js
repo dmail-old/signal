@@ -14,13 +14,13 @@ export const createCalledExactlyFailedMessage = (spy, actual, expected) => {
 	}
 
 	if (actual === 0) {
-		message += "but it was never called"
+		message += " but it was never called"
 	} else if (actual === 1) {
-		message += "but it was called once"
+		message += " but it was called once"
 	} else if (actual === 2) {
-		message += "but it was called twice"
+		message += " but it was called twice"
 	} else {
-		message += `bit it was called ${actual} times`
+		message += ` but it was called ${actual} times`
 	}
 
 	return message

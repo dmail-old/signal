@@ -127,22 +127,31 @@ export const passed = value => fromFunction(({ pass }) => pass(value))
 
 export const failed = value => fromFunction(({ fail }) => fail(value))
 
+export const mapFailed = (action, fn) => action.then(null, fn)
+
 export const all = iterable =>
 	fromFunction(({ fail, pass }) => {
 		let callCount = 0
 		let passedCount = 0
+		let failedOrPassed = false
 		const results = []
 
 		const compositeOnPassed = (result, index) => {
 			results[index] = result
 			passedCount++
-			if (passedCount === callCount) {
+			if (failedOrPassed === false && passedCount === callCount) {
 				pass(results)
+			}
+		}
+		const compositeOnFailed = result => {
+			if (failedOrPassed === false) {
+				failedOrPassed = true
+				fail(result)
 			}
 		}
 		const run = (value, index) => {
 			if (isAction(value)) {
-				value.then(result => compositeOnPassed(result, index), fail)
+				value.then(result => compositeOnPassed(result, index), compositeOnFailed)
 			} else {
 				compositeOnPassed(value, index)
 			}
@@ -244,16 +253,16 @@ export const sequence = (iterable, fn = v => v) =>
 
 export const any = iterable =>
 	fromFunction(({ fail, pass }) => {
-		let running = true
+		let failedOrPassed = false
 		const compositePass = value => {
-			if (running) {
-				running = false
+			if (failedOrPassed === false) {
+				failedOrPassed = true
 				pass(value)
 			}
 		}
 		const compositeFail = value => {
-			if (running) {
-				running = false
+			if (failedOrPassed === false) {
+				failedOrPassed = true
 				fail(value)
 			}
 		}
@@ -265,7 +274,7 @@ export const any = iterable =>
 				compositePass(value)
 			}
 
-			if (running === false) {
+			if (failedOrPassed) {
 				break
 			}
 		}

@@ -54,7 +54,7 @@ const ensure = expectations => () =>
 						state: "passed",
 						result
 					}
-					console.log("passed: ", result)
+					console.log(`passed${result ? `: ${result}` : ""}`)
 					checkEnded()
 				},
 				result => {
@@ -63,7 +63,7 @@ const ensure = expectations => () =>
 						state: "failed",
 						result
 					}
-					console.log("failed: ", result)
+					console.log(`failed${result ? `: ${result}` : ""}`)
 					checkEnded()
 				}
 			)
@@ -91,7 +91,7 @@ const test = ensure({
 				return expectCalledTwiceWithoutArgument(listened)
 			})
 	},
-	"listen call immeditaly previously emited args with memorize: true": () => {
+	"listen calls immediatly previously emited args with memorize: true": () => {
 		const spy = createSpy()
 		const source = createSignal({
 			memorize: true

@@ -2,7 +2,7 @@ import { expectMatch, createMatcher, createExpectFromMatcher } from "../expectMa
 import { failed, all, any, passed } from "../../expect.js"
 import { expectObject, expectFunction } from "../../expectType/expectType.js"
 
-const compareProperties = (actual, expected, { allowExtra = false, allowMissing = false }) =>
+const compareProperties = (actual, expected, { allowExtra = false, allowMissing = false } = {}) =>
 	any([expectObject(actual), expectFunction(actual)]).then(() => {
 		const actualPropertyNames = Object.keys(actual)
 		const expectedPropertyNames = Object.keys(expected)
@@ -37,12 +37,12 @@ const mapObject = (object, fn) => {
 const matchAny = () => createMatcher(() => passed())
 
 export const matchProperties = expected =>
-	createMatcher(actual => compareProperties(actual, expected))
+	createMatcher(actual => compareProperties(actual, expected, { allowExtra: false }))
 export const matchPropertiesAllowingExtra = expected =>
 	createMatcher(actual => compareProperties(actual, expected, { allowExtra: true }))
 export const matchPropertyNames = expected =>
 	createMatcher(actual => {
-		compareProperties(actual, mapObject(expected, matchAny))
+		compareProperties(actual, mapObject(expected, matchAny), { allowExtra: false })
 	})
 export const expectProperties = createExpectFromMatcher(matchProperties)
 export const expectPropertiesAllowingExtra = createExpectFromMatcher(matchPropertiesAllowingExtra)
