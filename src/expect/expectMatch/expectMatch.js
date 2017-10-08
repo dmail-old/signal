@@ -6,6 +6,7 @@
 // expectCalledWith(spy, matchBetween(5, 15))
 
 import { fromFunction } from "../expect.js"
+import { uneval } from "../uneval.js"
 
 const matchSymbol = Symbol()
 
@@ -15,7 +16,7 @@ export const expectMatch = (actual, expected) =>
 			return expected[matchSymbol](actual, fail, pass)
 		}
 		if (actual !== expected) {
-			return fail(`expect ${actual} to be ${expected}`)
+			return fail(`${uneval(actual)} does not match ${uneval(expected)}`)
 		}
 		return pass()
 	})

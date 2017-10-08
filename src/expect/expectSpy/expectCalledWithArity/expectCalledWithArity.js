@@ -1,4 +1,5 @@
 import { fromFunction, all } from "../../expect.js"
+import { uneval } from "../../uneval.js"
 
 import { expectCalledExactly } from "../expectCalledExactly/expectCalledExactly.js"
 import { expectCalled } from "../expectCalled/expectCalled.js"
@@ -19,7 +20,9 @@ const createFailedArityMessage = (call, actual, expected, actualArguments) => {
 	if (actual === 0) {
 		message += " but it was called without argument"
 	} else if (actual === 1) {
-		message += ` but it was called with one argument (${actualArguments})`
+		message += ` but it was called with one argument (${uneval(actualArguments, {
+			skipFunctionBody: true
+		})})`
 	} else if (actual === 2) {
 		message += " but it was called with two argument"
 	} else {
