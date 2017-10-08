@@ -22,7 +22,7 @@ const createFailedArityMessage = (call, actual, expected, actualArguments) => {
 	} else if (actual === 1) {
 		message += ` but it was called with one argument (${uneval(actualArguments, {
 			skipFunctionBody: true
-		})})`
+		}).slice(1, -1)})`
 	} else if (actual === 2) {
 		message += " but it was called with two argument"
 	} else {

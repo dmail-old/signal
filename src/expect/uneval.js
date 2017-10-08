@@ -94,11 +94,10 @@ Object.assign(compositeSources, {
 			seen = [array]
 		}
 
-		let source
+		let source = ""
 		let i = 0
 		const j = array.length
 
-		source = "["
 		while (i < j) {
 			source += uneval(array[i], { seen })
 			if (i < j - 1) {
@@ -106,9 +105,8 @@ Object.assign(compositeSources, {
 			}
 			i++
 		}
-		source += "]"
 
-		return format(source)
+		return format(`[${source}]`)
 	},
 	Boolean: (boolean, { format }) => format(`new Boolean(${boolean.valueOf()})`),
 	Date: (date, { format }) => format(`new Date(${date.valueOf()})`),
@@ -124,12 +122,11 @@ Object.assign(compositeSources, {
 			seen = [object]
 		}
 
-		let source
+		let source = ""
 		const propertyNames = getPropertyNames(object)
 		let i = 0
 		const j = propertyNames.length
 
-		source = "{"
 		while (i < j) {
 			const propertyName = propertyNames[i]
 			const propertyNameSource = uneval(propertyName)
@@ -139,9 +136,8 @@ Object.assign(compositeSources, {
 			}
 			i++
 		}
-		source += "}"
 
-		return format(source)
+		return format(`{${source}}`)
 	},
 	String: (string, { format }) => format(`new String(${quote(string)})`),
 	Symbol: (symbol, { unevalPrimitive }) => unevalPrimitive("symbol", symbol),
