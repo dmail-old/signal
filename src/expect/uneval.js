@@ -83,8 +83,10 @@ Object.assign(primitiveSources, {
 	symbol: (symbol, { format }) => format("{}"),
 	undefined: () => "undefined"
 })
+const unevalInstance = (instance, { type, uneval, format }) =>
+	format(`new ${type}(${uneval(instance.valueOf())})`)
 Object.assign(compositeSources, {
-	Array: (array, { seen, uneval, format }) => {
+	Array: (array, { seen, depth, uneval, format }) => {
 		if (seen) {
 			if (seen.indexOf(array) > -1) {
 				return "[]"
@@ -93,13 +95,14 @@ Object.assign(compositeSources, {
 		} else {
 			seen = [array]
 		}
+		depth = depth ? depth + 1 : 1
 
 		let source = ""
 		let i = 0
 		const j = array.length
 
 		while (i < j) {
-			source += uneval(array[i], { seen })
+			source += uneval(array[i], { seen, depth })
 			if (i < j - 1) {
 				source += ", "
 			}
@@ -108,11 +111,12 @@ Object.assign(compositeSources, {
 
 		return format(`[${source}]`)
 	},
-	Boolean: (boolean, { format }) => format(`new Boolean(${boolean.valueOf()})`),
-	Date: (date, { format }) => format(`new Date(${date.valueOf()})`),
-	Error: (error, { uneval, format }) => format(`new ${error.name}(${uneval(error.message)})`),
+	Boolean: unevalInstance,
+	Date: unevalInstance,
+	Error: (error, { expose }) => unevalInstance(error.message, expose({ type: error.name })),
+	Number: unevalInstance,
 	RegExp: regexp => regexp.toString(),
-	Object: (object, { seen, uneval, format }) => {
+	Object: (object, { seen, depth, uneval, format }) => {
 		if (seen) {
 			if (seen.indexOf(object) > -1) {
 				return "{}"
@@ -121,6 +125,7 @@ Object.assign(compositeSources, {
 		} else {
 			seen = [object]
 		}
+		depth = depth ? depth + 1 : 1
 
 		let source = ""
 		const propertyNames = getPropertyNames(object)
@@ -130,7 +135,7 @@ Object.assign(compositeSources, {
 		while (i < j) {
 			const propertyName = propertyNames[i]
 			const propertyNameSource = uneval(propertyName)
-			source += `${propertyNameSource}: ${uneval(object[propertyName], { seen })}`
+			source += `${propertyNameSource}: ${uneval(object[propertyName], { seen, depth })}`
 			if (i < j - 1) {
 				source += ", "
 			}
@@ -139,21 +144,24 @@ Object.assign(compositeSources, {
 
 		return format(`{${source}}`)
 	},
-	String: (string, { format }) => format(`new String(${quote(string)})`),
+	String: unevalInstance,
 	Symbol: (symbol, { unevalPrimitive }) => unevalPrimitive("symbol", symbol),
+	// ici faudrais désactiver les parenthèses jusque pour l'object qu'on uneval
+	// mais préserver la valeur par défaut pour ceux qui sont nested
 	Other: (object, { type, format, unevalComposite }) =>
-		format(`new ${type}(${unevalComposite("object", object)})`)
+		format(`new ${type}(${unevalComposite("Object", object)})`)
 })
 
 export const uneval = (
 	value,
 	options = {
-		parenthesis: true,
+		parenthesis: false,
 		skipFunctionBody: false
 	}
 ) => {
-	const localUneval = (value, localOptions = {}) =>
-		uneval(value, Object.assign({}, options, localOptions))
+	const expose = properties => Object.assign({}, options, properties)
+
+	const localUneval = (value, localOptions = {}) => uneval(value, expose(localOptions))
 
 	const format = string => {
 		if (options.parenthesis) {
@@ -163,21 +171,20 @@ export const uneval = (
 	}
 	const unevalPrimitive = (type, value) => {
 		if (type in primitiveSources) {
-			return primitiveSources[type](value, options)
+			return primitiveSources[type](value, expose({ type }))
 		}
 		throw new Error(`no match for primitive ${value}`)
 	}
 	const unevalComposite = (type, value) => {
-		if (type in compositeSources === false) {
-			type = "Other"
-		}
-		if (type in compositeSources) {
-			return compositeSources[type](value, options)
+		const handlerType = type in compositeSources ? type : "Other"
+		if (handlerType in compositeSources) {
+			return compositeSources[handlerType](value, expose({ type }))
 		}
 		throw new Error(`no match for composite ${value}`)
 	}
 
 	Object.assign(options, {
+		expose,
 		uneval: localUneval,
 		format,
 		unevalPrimitive,
