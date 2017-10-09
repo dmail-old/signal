@@ -1,24 +1,21 @@
 const nowMs = () => Number(new Date())
 
 let id = 0
-const createCall = (spy, index) => {
+const createAbstractCall = (spy, index) => {
+	const call = {}
+	const calledCallbacks = []
+
 	let called = false
 	let thisValue
 	let temporalOrder
 	let value
 	const argsValue = []
-	let resolve
 	const msCreated = nowMs()
 	let msInvoked
-	const promise = new Promise(res => {
-		resolve = res
-	})
-	const then = fn => promise.then(fn)
 
-	const call = {}
-	const settle = ({ context, args, returnValue }) => {
+	const concretize = ({ context, args, returnValue }) => {
 		if (called) {
-			throw new Error("can be settled only once")
+			throw new Error("can be concretized only once")
 		}
 		called = true
 		// duration is not enough in case call are settled on the same ms
@@ -28,9 +25,10 @@ const createCall = (spy, index) => {
 		thisValue = context
 		argsValue.push(...args)
 		value = returnValue
-		resolve(call)
-	}
 
+		calledCallbacks.forEach(calledCallback => calledCallback(call))
+		calledCallbacks.length = 0
+	}
 	const getDuration = () => msInvoked - msCreated
 	const getTemporalOrder = () => temporalOrder
 	const getThis = () => thisValue
@@ -38,57 +36,72 @@ const createCall = (spy, index) => {
 	const getValue = () => value
 	const wasCalled = () => called
 	const wasCalledBefore = otherCall => temporalOrder > otherCall.getTemporalOrder()
+	const toString = () => {
+		if (index === 0) {
+			return `${spy} first call`
+		}
+		if (index === 1) {
+			return `${spy} second call`
+		}
+		if (index === 2) {
+			return `${spy} third call`
+		}
+		return `${spy} call n°${index}`
+	}
+	const whenCalled = fn => {
+		if (called) {
+			return fn(call)
+		}
+		calledCallbacks.push(fn)
+	}
 
 	Object.assign(call, {
-		toString: () => {
-			if (index === 0) {
-				return `${spy} first call`
-			}
-			if (index === 1) {
-				return `${spy} second call`
-			}
-			if (index === 2) {
-				return `${spy} third call`
-			}
-			return `${spy} call n°${index}`
-		},
-		then,
-		settle,
+		toString,
+		concretize,
 		getDuration,
 		getTemporalOrder,
 		getThis,
 		getArguments,
 		getValue,
 		wasCalled,
-		wasCalledBefore
+		wasCalledBefore,
+		whenCalled
 	})
 
 	return call
 }
 
 export const createSpy = fn => {
-	const calls = []
-	let callCount = 0
-	let currentCall
+	const abstractCalls = []
+	let abstractCallIndex = -1
 	let spy
 
-	const getCall = index => {
-		if (index in calls) {
-			return calls[index]
+	const getOrCreateAbstractCall = index => {
+		if (index in abstractCalls) {
+			return abstractCalls[index]
 		}
-		const call = createCall(spy, index)
-		calls[index] = call
+		const call = createAbstractCall(spy, index)
+		abstractCalls[index] = call
 		return call
 	}
-	const getCallCount = () => callCount
-	const getFirstCall = () => getCall(0)
-	const getCalls = () => calls
-	const getLastCall = () => calls.reverse().find(call => call.wasCalled()) || calls[0]
+	const getCalls = () => abstractCalls.filter(({ wasCalled }) => wasCalled())
+	const getCall = index => getCalls()[index]
+	const getCallCount = () => getCalls().length
+	const getFirstCall = () => getCalls()[0]
+	const getLastCall = () =>
+		abstractCalls.reverse().find(({ wasCalled }) => wasCalled()) || abstractCalls[0]
+	const prepareNextAbstractCall = () => {
+		abstractCallIndex++
+		getOrCreateAbstractCall(abstractCallIndex)
+	}
 
+	// create abstract call in advance so that we can measure ms ellapsed between
+	// an abstract call creation and when it actually called
+	// this is very useful to measure time between calls for instance
+	prepareNextAbstractCall()
 	spy = function() {
-		const theCall = currentCall
-		callCount++
-		currentCall = getCall(callCount) // create the next call right now so that we measure ms between each calls
+		const abstractCall = abstractCalls[abstractCallIndex]
+		prepareNextAbstractCall()
 
 		const context = this
 		const args = arguments
@@ -96,7 +109,7 @@ export const createSpy = fn => {
 		if (fn && typeof fn === "function") {
 			returnValue = fn.apply(context, args)
 		}
-		theCall.settle({
+		abstractCall.concretize({
 			context,
 			args,
 			returnValue
@@ -104,25 +117,22 @@ export const createSpy = fn => {
 
 		return returnValue
 	}
-	currentCall = getCall(0)
 
-	const state = {
-		calls
+	const toString = () => {
+		if (fn && fn.name) {
+			return `${fn.name} spy`
+		}
+		return `anonymous spy`
 	}
 
 	Object.assign(spy, {
-		toString: () => {
-			if (fn && fn.name) {
-				return `${fn.name} spy`
-			}
-			return `anonymous spy`
-		},
-		state,
-		getCall,
+		toString,
+		getOrCreateAbstractCall,
 		getCallCount,
-		getCalls,
+		getCall,
 		getFirstCall,
-		getLastCall
+		getLastCall,
+		getCalls
 	})
 
 	return spy

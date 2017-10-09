@@ -9,3 +9,5 @@ export const expectCalledExactlyWith = (spy, expectedCallCount, ...expectedArgs)
 	)
 export const expectCalledOnceWith = (spy, ...expectedArgs) =>
 	expectCalledExactlyWith(spy, 1, ...expectedArgs)
+export const expectCalledTwiceWith = (spy, ...expectedArgs) =>
+	expectCalledExactlyWith(spy, 2, ...expectedArgs)
