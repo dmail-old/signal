@@ -4,13 +4,13 @@ import { uneval } from "./uneval.js"
 
 const expectUneval = (value, expectedUneval) => assert.equal(uneval(value), expectedUneval)
 
-/* eslint-disable no-new-wrappers, no-new-object */
+/* eslint-disable no-new-wrappers, no-new-object, no-array-constructor */
 
 // boolean/Boolean
 expectUneval(true, "true")
 expectUneval(false, "false")
-expectUneval(new Boolean(true), "new Boolean(true)")
-expectUneval(new Boolean(false), "new Boolean(false)")
+expectUneval(new Boolean(true), "Boolean(true)")
+expectUneval(new Boolean(false), "Boolean(false)")
 
 // function
 expectUneval(() => {}, "function () {}") // because babel
@@ -27,8 +27,8 @@ expectUneval(null, "null")
 // number/Number
 expectUneval(0, "0")
 expectUneval(1, "1")
-expectUneval(new Number(0), "new Number(0)")
-expectUneval(new Number(-1), "new Number(-1)")
+expectUneval(new Number(0), "Number(0)")
+expectUneval(new Number(-1), "Number(-1)")
 
 // object/Object
 expectUneval({}, "{}")
@@ -47,8 +47,8 @@ expectUneval("", `""`)
 expectUneval("dam", `"dam"`)
 expectUneval("don't", `"don\\\'t"`)
 expectUneval(`his name is "dam"`, `"his name is \\\"dam\\\""`)
-expectUneval(new String(""), `new String("")`)
-expectUneval(new String("dam"), `new String("dam")`)
+expectUneval(new String(""), `String("")`)
+expectUneval(new String("dam"), `String("dam")`)
 
 // symbol/Symbol
 expectUneval(Symbol(), "{}")
@@ -61,14 +61,18 @@ expectUneval(/ok/g, "/ok/g")
 expectUneval(new RegExp("foo", "g"), "/foo/g")
 
 // error
-expectUneval(new Error("here"), `new Error("here")`)
-expectUneval(new RangeError("here"), `new RangeError("here")`)
+expectUneval(new Error("here"), `Error("here")`)
+expectUneval(new RangeError("here"), `RangeError("here")`)
 
 // date
-expectUneval(new Date(), `new Date(${Date.now()})`)
+expectUneval(new Date(), `Date(${Date.now()})`)
 
 // array
 expectUneval([], `[]`)
+expectUneval(new Array("foo", 1), `["foo", 1]`)
+const circularArray = [0]
+circularArray.push(circularArray)
+expectUneval(circularArray, `[0, []]`)
 // todo: new Array & circular array
 
 // other instance
@@ -76,7 +80,7 @@ const CustomConstructor = function() {
 	this.foo = true
 }
 const customInstance = new CustomConstructor()
-expectUneval(customInstance, `new CustomConstructor({"foo": true})`)
+expectUneval(customInstance, `CustomConstructor({"foo": true})`)
 
 console.log("all passed")
 

@@ -84,7 +84,7 @@ Object.assign(primitiveSources, {
 	undefined: () => "undefined"
 })
 const unevalInstance = (instance, { type, uneval, format }) =>
-	format(`new ${type}(${uneval(instance.valueOf())})`)
+	format(`${type}(${uneval(instance.valueOf())})`)
 Object.assign(compositeSources, {
 	Array: (array, { seen, depth, uneval, format }) => {
 		if (seen) {
@@ -149,13 +149,14 @@ Object.assign(compositeSources, {
 	// ici faudrais désactiver les parenthèses jusque pour l'object qu'on uneval
 	// mais préserver la valeur par défaut pour ceux qui sont nested
 	Other: (object, { type, format, unevalComposite }) =>
-		format(`new ${type}(${unevalComposite("Object", object)})`)
+		format(`${type}(${unevalComposite("Object", object)})`)
 })
 
 export const uneval = (
 	value,
 	options = {
 		parenthesis: false,
+		new: false,
 		skipFunctionBody: false
 	}
 ) => {
@@ -164,10 +165,14 @@ export const uneval = (
 	const localUneval = (value, localOptions = {}) => uneval(value, expose(localOptions))
 
 	const format = string => {
+		let formattedString = string
 		if (options.parenthesis) {
-			return `(${string})`
+			formattedString = `(${string})`
 		}
-		return string
+		if (options.new) {
+			formattedString = `new ${string}`
+		}
+		return formattedString
 	}
 	const unevalPrimitive = (type, value) => {
 		if (type in primitiveSources) {
