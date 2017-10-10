@@ -65,6 +65,8 @@ function getPropertyNames(value) {
 	return names
 }
 
+const newLineAndIndentation = indent => "\n" + "\t".repeat(indent) // eslint-disable-line prefer-template
+
 const primitiveSources = {}
 const compositeSources = {}
 
@@ -86,7 +88,7 @@ Object.assign(primitiveSources, {
 const unevalInstance = (instance, { type, uneval, format }) =>
 	format(`${type}(${uneval(instance.valueOf())})`)
 Object.assign(compositeSources, {
-	Array: (array, { seen, depth, uneval, format }) => {
+	Array: (array, { seen, depth, uneval, format, pretty }) => {
 		if (seen) {
 			if (seen.indexOf(array) > -1) {
 				return "[]"
@@ -97,26 +99,47 @@ Object.assign(compositeSources, {
 		}
 		depth = depth ? depth + 1 : 1
 
-		let source = ""
+		let valuesSource = ""
 		let i = 0
 		const j = array.length
 
 		while (i < j) {
-			source += uneval(array[i], { seen, depth })
-			if (i < j - 1) {
-				source += ", "
+			const valueSource = uneval(array[i], { seen, depth })
+			if (pretty) {
+				if (i === 0) {
+					valuesSource += valueSource
+				} else {
+					valuesSource += `,${newLineAndIndentation(depth)}${valueSource}`
+				}
+			} else if (i === 0) {
+				valuesSource += valueSource
+			} else {
+				valuesSource += `, ${valueSource}`
 			}
 			i++
 		}
 
-		return format(`[${source}]`)
+		let arraySource
+		if (valuesSource.length) {
+			if (pretty) {
+				arraySource = `[${newLineAndIndentation(depth)}${valuesSource}${newLineAndIndentation(
+					depth - 1
+				)}]`
+			} else {
+				arraySource = `[${valuesSource}]`
+			}
+		} else {
+			arraySource = "[]"
+		}
+
+		return format(arraySource)
 	},
 	Boolean: unevalInstance,
 	Date: unevalInstance,
 	Error: (error, { expose }) => unevalInstance(error.message, expose({ type: error.name })),
 	Number: unevalInstance,
 	RegExp: regexp => regexp.toString(),
-	Object: (object, { seen, depth, uneval, format }) => {
+	Object: (object, { seen, depth, uneval, format, pretty }) => {
 		if (seen) {
 			if (seen.indexOf(object) > -1) {
 				return "{}"
@@ -127,7 +150,7 @@ Object.assign(compositeSources, {
 		}
 		depth = depth ? depth + 1 : 1
 
-		let source = ""
+		let propertiesSource = ""
 		const propertyNames = getPropertyNames(object)
 		let i = 0
 		const j = propertyNames.length
@@ -135,14 +158,39 @@ Object.assign(compositeSources, {
 		while (i < j) {
 			const propertyName = propertyNames[i]
 			const propertyNameSource = uneval(propertyName)
-			source += `${propertyNameSource}: ${uneval(object[propertyName], { seen, depth })}`
-			if (i < j - 1) {
-				source += ", "
+			const propertyValueSource = uneval(object[propertyName], { seen, depth })
+
+			if (pretty) {
+				if (i === 0) {
+					propertiesSource += `${propertyNameSource}: ${propertyValueSource}`
+				} else {
+					propertiesSource += `,${newLineAndIndentation(
+						depth
+					)}${propertyNameSource}: ${propertyValueSource}`
+				}
+			} else if (i === 0) {
+				propertiesSource += `${propertyNameSource}: ${propertyValueSource}`
+			} else {
+				propertiesSource += `, ${propertyNameSource}: ${propertyValueSource}`
 			}
+
 			i++
 		}
 
-		return format(`{${source}}`)
+		let objectSource
+		if (propertiesSource.length) {
+			if (pretty) {
+				objectSource = `{${newLineAndIndentation(depth)}${propertiesSource}${newLineAndIndentation(
+					depth - 1
+				)}}`
+			} else {
+				objectSource = `{ ${propertiesSource} }`
+			}
+		} else {
+			objectSource = "{}"
+		}
+
+		return format(objectSource)
 	},
 	String: unevalInstance,
 	Symbol: (symbol, { unevalPrimitive }) => unevalPrimitive("symbol", symbol),

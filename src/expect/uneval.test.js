@@ -40,7 +40,14 @@ const circularObject = {
 }
 circularObject.self = circularObject
 expectUneval(circularObject, `{"foo": true, "self": {}}`)
-// todo: more complex circular structure
+const nestedCircularObject = {
+	foo: true
+}
+nestedCircularObject.nested = {
+	bar: true,
+	parent: nestedCircularObject
+}
+expectUneval(nestedCircularObject, `{"foo": true, "nested": {"bar": true, "parent": {}}}`)
 
 // string/String
 expectUneval("", `""`)
@@ -73,7 +80,6 @@ expectUneval(new Array("foo", 1), `["foo", 1]`)
 const circularArray = [0]
 circularArray.push(circularArray)
 expectUneval(circularArray, `[0, []]`)
-// todo: new Array & circular array
 
 // other instance
 const CustomConstructor = function() {
