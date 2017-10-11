@@ -23,49 +23,125 @@ import {
 	expectFalse
 } from "./expect/index.js"
 
-const ensure = expectations => () =>
-	fromFunction(({ fail, pass }) => {
-		const expectationDescriptions = Object.keys(expectations)
-		const report = {}
-		let passedOrFailedCount = 0
-		let someHasFailed = false
+const composeParams = (inputParams, params) => Object.assign({}, inputParams, params)
+const createFunctionComposingParams = (params = {}, fnCalledWithComposedParams) => inputParams =>
+	fnCalledWithComposedParams(composeParams(inputParams, params))
+const createFunctionComposingDynamicParams = (
+	fnCreatingDynamicParams,
+	fnCalledWithComposedParams
+) => inputParams =>
+	fnCalledWithComposedParams(composeParams(inputParams, fnCreatingDynamicParams(inputParams)))
+const createFunctionCalledBefore = (fn, fnCalledAfter) => (...args) => {
+	fn(...args)
+	return fnCalledAfter(...args)
+}
 
-		const checkEnded = () => {
-			passedOrFailedCount++
-			if (passedOrFailedCount === expectationDescriptions.length) {
-				if (someHasFailed) {
-					fail(report)
-				} else {
-					pass(report)
+const fromFunctionWithAllocableMs = fn =>
+	fromFunction(
+		createFunctionComposingDynamicParams(({ fail, then }) => {
+			let timeoutid
+			let allocatedMs = Infinity
+			const cancelTimeout = () => {
+				if (timeoutid !== undefined) {
+					clearTimeout(timeoutid)
+					timeoutid = undefined
 				}
 			}
-		}
-
-		expectationDescriptions.forEach(description => {
-			console.log(description)
-			fromFunction(expectations[description]).then(
-				result => {
-					report[description] = {
-						state: "passed",
-						result
-					}
-					console.log(`passed${result ? `: ${result}` : ""}`)
-					checkEnded()
-				},
-				result => {
-					someHasFailed = true
-					report[description] = {
-						state: "failed",
-						result
-					}
-					console.log(`failed${result ? `: ${result}` : ""}`)
-					checkEnded()
+			const allocateMs = ms => {
+				allocatedMs = ms
+				cancelTimeout()
+				if (ms > -1 && ms !== Infinity) {
+					timeoutid = setTimeout(
+						() => fail(`must pass or fail in less than ${allocatedMs}ms`),
+						allocatedMs
+					)
 				}
-			)
-		})
-	})
+			}
+			const getAllocatedMs = () => allocatedMs
+			then(cancelTimeout, cancelTimeout)
 
-const test = ensure({
+			return { allocateMs, getAllocatedMs }
+		}, fn)
+	)
+
+const ensure = (expectations, { allocatedMs = 100 } = {}) => {
+	const runTest = ({ beforeEach, afterEach, allocateMs, getAllocatedMs } = {}) => {
+		return fromFunction(({ fail, pass }) => {
+			// give the allocateMs for ensure to fail/pass
+			allocateMs(allocatedMs)
+
+			const expectationDescriptions = Object.keys(expectations)
+			const compositeReport = {}
+			let passedOrFailedCount = 0
+			let someHasFailed = false
+
+			const checkEnded = () => {
+				passedOrFailedCount++
+				if (passedOrFailedCount === expectationDescriptions.length) {
+					if (someHasFailed) {
+						fail(compositeReport)
+					} else {
+						pass(compositeReport)
+					}
+				}
+			}
+
+			expectationDescriptions.forEach(description => {
+				beforeEach(description)
+				fromFunctionWithAllocableMs(
+					// give expectation the ensure allocatedMs to fail/pass
+					createFunctionCalledBefore(
+						({ allocateMs }) => allocateMs(getAllocatedMs()),
+						expectations[description]
+					)
+				).then(
+					result => {
+						const passedReport = {
+							state: "passed",
+							result
+						}
+						compositeReport[description] = passedReport
+						afterEach(description, passedReport)
+						checkEnded()
+					},
+					result => {
+						someHasFailed = true
+						const failedReport = {
+							state: "failed",
+							result
+						}
+						compositeReport[description] = failedReport
+						afterEach(description, failedReport)
+						checkEnded()
+					}
+				)
+			})
+		})
+	}
+
+	runTest["@@autorun"] = () =>
+		fromFunctionWithAllocableMs(
+			createFunctionComposingParams(
+				{
+					beforeEach: description => {
+						console.log(description)
+					},
+					afterEach: (description, report) => {
+						if (report.state === "passed") {
+							console.log(`passed${report.result ? `: ${report.result}` : ""}`)
+						} else {
+							console.log(`failed${report.result ? `: ${report.result}` : ""}`)
+						}
+					}
+				},
+				runTest
+			)
+		)
+
+	return runTest
+}
+
+const expectations = {
 	"signal is a function": () => expectFunction(createSignal),
 	"listen returns an object": () => expectObject(createSignal().listen(() => {})),
 	"listen triggers listened": () => {
@@ -138,7 +214,7 @@ const test = ensure({
 		})
 	},
 	// "execution state is prevented & stateReason is disabled for disabled listener"
-	isListened: () => {
+	"isListened behaviour": () => {
 		const signal = createSignal()
 		return expectFalse(signal.isListened()).then(() => {
 			const listener = signal.listen(() => {})
@@ -194,8 +270,6 @@ const test = ensure({
 	// must test with two listeners
 	// "stop() prevent call of subsequent listener"(signal)
 	// "listenerExecution.stopped is true when calling stop() during listener execution"
-})
+}
 
-test()
-
-export default test
+export default ensure(expectations)

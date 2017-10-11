@@ -15,8 +15,8 @@ const packageDirectory = cwd
 const compiledDirectory = path.join(packageDirectory, "dist")
 
 if (resolvedFile.indexOf(compiledDirectory) === 0) {
-  process.stderr.write(`file in ${compiledDirectory} not allowed`)
-  process.exit(1)
+	process.stderr.write(`file in ${compiledDirectory} not allowed`)
+	process.exit(1)
 }
 
 // only index.js, index.test.js and src/* can be runned from dist
@@ -45,4 +45,10 @@ const fileRelativeToPackageDirectory = path.relative(packageDirectory, resolvedF
 const distFile = path.join(compiledDirectory, fileRelativeToPackageDirectory)
 
 // execute using require (this way process.args like --inspect are fowarded)
-require(distFile)
+const namedExports = require(distFile)
+if (namedExports && "default" in namedExports) {
+	const defaultExport = namedExports["default"]
+	if (defaultExport.hasOwnProperty("@@autorun")) {
+		defaultExport["@@autorun"]()
+	}
+}
