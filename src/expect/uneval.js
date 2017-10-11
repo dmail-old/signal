@@ -205,7 +205,8 @@ export const uneval = (
 	options = {
 		parenthesis: false,
 		new: false,
-		skipFunctionBody: false
+		skipFunctionBody: false,
+		pretty: true
 	}
 ) => {
 	const expose = properties => Object.assign({}, options, properties)

@@ -32,14 +32,32 @@ expectUneval(new Number(-1), "Number(-1)")
 
 // object/Object
 expectUneval({}, "{}")
-expectUneval({ foo: true }, '{"foo": true}')
-expectUneval({ foo: { name: "dam" } }, '{"foo": {"name": "dam"}}')
+expectUneval(
+	{ foo: true },
+	`{
+	"foo": true
+}`
+)
+expectUneval(
+	{ foo: { name: "dam" } },
+	`{
+	"foo": {
+		"name": "dam"
+	}
+}`
+)
 expectUneval(new Object({}), "{}")
 const circularObject = {
 	foo: true
 }
 circularObject.self = circularObject
-expectUneval(circularObject, `{"foo": true, "self": {}}`)
+expectUneval(
+	circularObject,
+	`{
+	"foo": true,
+	"self": {}
+}`
+)
 const nestedCircularObject = {
 	foo: true
 }
@@ -47,7 +65,16 @@ nestedCircularObject.nested = {
 	bar: true,
 	parent: nestedCircularObject
 }
-expectUneval(nestedCircularObject, `{"foo": true, "nested": {"bar": true, "parent": {}}}`)
+expectUneval(
+	nestedCircularObject,
+	`{
+	"foo": true,
+	"nested": {
+		"bar": true,
+		"parent": {}
+	}
+}`
+)
 
 // string/String
 expectUneval("", `""`)
@@ -76,17 +103,34 @@ expectUneval(new Date(), `Date(${Date.now()})`)
 
 // array
 expectUneval([], `[]`)
-expectUneval(new Array("foo", 1), `["foo", 1]`)
+expectUneval(
+	new Array("foo", 1),
+	`[
+	"foo",
+	1
+]`
+)
 const circularArray = [0]
 circularArray.push(circularArray)
-expectUneval(circularArray, `[0, []]`)
+expectUneval(
+	circularArray,
+	`[
+	0,
+	[]
+]`
+)
 
 // other instance
 const CustomConstructor = function() {
 	this.foo = true
 }
 const customInstance = new CustomConstructor()
-expectUneval(customInstance, `CustomConstructor({"foo": true})`)
+expectUneval(
+	customInstance,
+	`CustomConstructor({
+	"foo": true
+})`
+)
 
 console.log("all passed")
 
