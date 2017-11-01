@@ -3,6 +3,6 @@
 [![build](https://travis-ci.org/dmail/signal.svg)](http://travis-ci.org/dmail/signal)
 [![codecov](https://codecov.io/gh/dmail/signal/branch/master/graph/badge.svg)](https://codecov.io/gh/dmail/signal)
 
-JavaScript signal
+signal
 
 

@@ -3,17 +3,16 @@
 // https://github.com/kriskowal/gtor/blob/master/signals.md
 // https://remysharp.com/2010/07/21/throttling-function-calls
 
-const recursiveMessage = `emit called recursively, its often not desired.
-If you know what you're doing pass recursiveRule: 'off' option to signal`
-const defaultRecursiveRule = "warn"
+const recursiveMessage = `emit called recursively, its often the sign of an error.
+You can disable his recursive check doing createSignal({ recursed: null })`
+
+export const warnOnRecursed = () => console.warn(recursiveMessage)
+export const errorOnRecursed = () => {
+	throw new Error(recursiveMessage)
+}
 
 export const createSignal = (
-	{
-		memorize = false,
-		recursiveRule = defaultRecursiveRule, // warn, error, off
-		listened,
-		args: curriedArgs = []
-	} = {}
+	{ memorize = false, recursed = warnOnRecursed, listened, args: curriedArgs = [] } = {}
 ) => {
 	const signal = {}
 
@@ -27,14 +26,10 @@ export const createSignal = (
 
 	let enabled = true
 	const enable = () => {
-		if (enabled === false) {
-			enabled = true
-		}
+		enabled = true
 	}
 	const disable = () => {
-		if (enabled === true) {
-			enabled = false
-		}
+		enabled = false
 	}
 	const isEnabled = () => enabled
 	const isDisabled = () => enabled === false
@@ -51,7 +46,7 @@ export const createSignal = (
 	let unlistened
 	const listen = (fn, { once = false } = {}) => {
 		// prevent duplicate
-		if (listeners.some(listener => listener.fn === fn)) {
+		if (listeners.some(listener => listener.getFunction() === fn)) {
 			return false
 		}
 
@@ -88,7 +83,6 @@ export const createSignal = (
 			currentListenerPreventNext = true
 			currentListenerPreventNextReason = reason
 		}
-
 		const run = (...args) => {
 			if (isDisabled()) {
 				prevent("disabled")
@@ -99,8 +93,10 @@ export const createSignal = (
 			}
 			return fn(...args)
 		}
+		const getFunction = () => fn
 
 		Object.assign(listener, {
+			getFunction,
 			disable,
 			enable,
 			isEnabled,
@@ -136,12 +132,8 @@ export const createSignal = (
 		if (isDisabled()) {
 			return false
 		}
-		if (dispatching) {
-			if (recursiveRule === "warn") {
-				console.warn(recursiveMessage)
-			} else if (recursiveRule === "error") {
-				throw new Error(recursiveMessage)
-			}
+		if (dispatching && recursed) {
+			recursed()
 		}
 		if (curriedArgs.length) {
 			args = [...curriedArgs, ...args]

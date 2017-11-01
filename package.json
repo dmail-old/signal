@@ -1,7 +1,7 @@
 {
 	"name": "signal",
-	"version": "1.0.0",
-	"licence": "MIT",
+	"version": "2.0.0",
+	"license": "MIT",
 	"repository": {
 		"type": "git",
 		"url": "https://github.com/dmail/signal"
@@ -21,11 +21,11 @@
 	"dependencies": {},
 	"devDependencies": {
 		"@dmail/command": "0.1.1",
-		"@dmail/ensure": "0.0.2",
-		"@dmail/prettiest": "0.1.4",
+		"@dmail/expect": "2.1.0",
+		"@dmail/prettiest": "0.2.1",
 		"@dmail/shared-config": "1.1.1",
-		"@dmail/spy": "0.0.1",
-		"@dmail/test": "1.2.0",
+		"@dmail/spy": "1.0.1",
+		"@dmail/test": "2.2.0",
 		"babel-cli": "7.0.0-beta.0",
 		"babel-core": "7.0.0-beta.0",
 		"babel-eslint": "8.0.0",
@@ -43,6 +43,7 @@
 		"code-build": "npm run code-clean && npm run code-compile",
 		"code-watch": "babel . --watch --out-dir dist --ignore=node_modules,dist --source-maps",
 		"code-lint": "eslint .",
+		"code-list": "prettiest-list",
 		"code-format": "prettiest",
 		"test-list": "test-list",
 		"test-before": "npm run code-lint && npm run code-format && npm run code-compile",
@@ -51,13 +52,15 @@
 		"test-cover": "npm run test-before && nyc npm run test-run",
 		"test-cover-clean": "rimraf .nyc_output && rimraf coverage && rimraf coverage.lcov",
 		"test-cover-html": "nyc report --reporter=lcov",
+		"test-cover-text": "nyc report --reporter=text-summary",
+		"test-cover-table": "nyc report --reporter=text",
 		"test-cover-lcov": "nyc report --reporter=text-lcov > coverage.lcov",
-		"test-cover-upload": "npm run test-cover-lcov && codecov --token=",
+		"test-cover-upload": "codecov --token=9f735b95-4762-4239-956a-35d53af3e6bf",
 		"repo-reset": "npm run code-clean && npm run test-cover-clean && rimraf node_modules",
 		"repo-reinstall": "npm run repo-reset && npm install",
-		"build": "npm run code-compile",
+		"build": "npm run code-build",
 		"compile": "npm run code-compile",
-		"prepublishOnly": "npm run dist",
+		"prepublishOnly": "npm run code-build",
 		"reinstall": "npm run repo-reinstall"
 	}
 }
