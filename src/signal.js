@@ -12,27 +12,9 @@ export const errorOnRecursed = () => {
 }
 
 export const createSignal = (
-	{ memorize = false, recursed = warnOnRecursed, listened, args: curriedArgs = [] } = {}
+	{ recursed = warnOnRecursed, listened = {}
 ) => {
 	const signal = {}
-
-	let memorizedArgs = null
-	const remember = (...args) => {
-		memorizedArgs = args
-	}
-	const forget = () => {
-		memorizedArgs = null
-	}
-
-	let enabled = true
-	const enable = () => {
-		enabled = true
-	}
-	const disable = () => {
-		enabled = false
-	}
-	const isEnabled = () => enabled
-	const isDisabled = () => enabled === false
 
 	const listeners = []
 	let currentListenerRemoved
@@ -44,25 +26,14 @@ export const createSignal = (
 	const isListened = () => listeners.some(listener => listener.isEnabled())
 	const has = listener => listeners.includes(listener)
 	let unlistened
-	const listen = (fn, { once = false } = {}) => {
+	const listen = (fn) => {
 		// prevent duplicate
-		if (listeners.some(listener => listener.getFunction() === fn)) {
+		if (listeners.some(listener => listener === fn)) {
 			return false
 		}
 
-		const listener = {}
-
-		let enabled = true
-		const disable = () => {
-			enabled = false
-		}
-		const enable = () => {
-			enabled = true
-		}
-		const isEnabled = () => enabled
-		const isDisabled = () => enabled === false
 		const remove = reason => {
-			let index = listeners.indexOf(listener)
+			let index = listeners.indexOf(fn)
 			if (index > -1) {
 				currentListenerRemoved = true
 				currentListenerRemovedReason = reason
@@ -70,56 +41,29 @@ export const createSignal = (
 				if (listeners.length === 0 && unlistened) {
 					unlistened(signal)
 				}
-				listener.remove = () => false
 				return true
 			}
 			return false
 		}
-		const prevent = reason => {
-			currentListenerPrevented = true
-			currentListenerPreventedReason = reason
-		}
-		const preventNext = reason => {
-			currentListenerPreventNext = true
-			currentListenerPreventNextReason = reason
-		}
-		const run = (...args) => {
-			if (isDisabled()) {
-				prevent("disabled")
-				return
-			}
-			if (once) {
-				remove("once")
-			}
-			return fn(...args)
-		}
-		const getFunction = () => fn
 
-		Object.assign(listener, {
-			getFunction,
-			disable,
-			enable,
-			isEnabled,
-			isDisabled,
-			run,
-			remove,
-			prevent,
-			preventNext
-		})
-
-		listeners.push(listener)
+		listeners.push(fn)
 		if (listeners.length === 1 && listened) {
 			unlistened = listened(signal)
 		}
-		if (memorize && memorizedArgs) {
-			run(...memorizedArgs)
-		}
 
-		return listener
+		return remove
 	}
-	const listenOnce = fn => listen(fn, { once: true })
+	// le problème ici c'est que si on change la fonction qu'on apelle, la détection
+	// de fonction qu'on écouterait 2fois ne marche pas mais sinon
+	// ça fonctionnerais, on pourrais avoir une option pour gérer ce cas
+	// ou tout simplement vérifier le duplicata ici, en amont
+	// par contre has(listener) ne marchera pas non plus et là j'ai pas trop de soluce pour le moment
+	// l'idée derrière tout ça c'est de simplifier listen pour que ça retourne
+	// une fonction et pas un objet listener
+	const listenOnce = fn => listen(fn, 
+		
+	)
 	const clear = () => {
-		forget()
 		listeners.length = 0
 	}
 	const stop = reason => {
@@ -129,17 +73,8 @@ export const createSignal = (
 
 	let dispatching = false
 	const emit = (...args) => {
-		if (isDisabled()) {
-			return false
-		}
 		if (dispatching && recursed) {
 			recursed()
-		}
-		if (curriedArgs.length) {
-			args = [...curriedArgs, ...args]
-		}
-		if (memorize) {
-			remember(...args)
 		}
 
 		// we use dispatching to detect recursive emit() from listener callback
@@ -157,7 +92,7 @@ export const createSignal = (
 			currentListenerPreventedReason = undefined
 			currentListenerPreventNext = false
 			currentListenerPreventNextReason = undefined
-			const currentListenerValue = listener.run(...args)
+			const currentListenerValue = listener(...args)
 
 			if (currentListenerValue === false && currentListenerPreventNext === false) {
 				currentListenerPreventNext = true
@@ -191,12 +126,6 @@ export const createSignal = (
 	}
 
 	Object.assign(signal, {
-		remember,
-		forget,
-		enable,
-		disable,
-		isEnabled,
-		isDisabled,
 		isListened,
 		has,
 		listen,
@@ -207,4 +136,63 @@ export const createSignal = (
 	})
 
 	return signal
+}
+
+const addRetainTalent = ({listen, emit}) => {
+	let retaining = false
+	let retainedArgs
+	const retain = (...args) => {
+		retaining = true
+	}
+	const forget = () => {
+		retaining = false
+		retainedArgs = undefined
+	}
+	const listenWithRetainTalent = (fn) => {
+		const returnValue = listen(fn)
+		if (returnValue === false) {
+			return false
+		}
+		if (retainedArgs) {
+			fn(...retainedArgs)
+		}
+		return returnValue
+	}
+	const emitWithRetainTalent = (...args) => {
+		if (retaining) {
+			retainedArgs = args
+		}
+		return emit(...args)
+	}
+	return {
+		retain,
+		forget,
+		listen: listenWithRetainTalent,
+		emit: emitWithRetainTalent,
+	}
+}
+
+const addDisableTalent = (fn) => {
+	let enabled = true
+	const enable = () => {
+		enabled = true
+	}
+	const disable = () => {
+		enabled = false
+	}
+	const isEnabled = () => enabled
+	const isDisabled = () => enabled === false
+	
+	return {
+		enable,
+		disable,
+		isEnabled,
+		isDisabled,
+		fn: () => {
+			if (isDisabled()) {
+				return false
+			}
+			return fn(...args)
+		}
+	}
 }
