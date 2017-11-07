@@ -12,7 +12,7 @@ export const errorOnRecursed = () => {
 }
 
 export const createSignal = (
-	{ recursed = warnOnRecursed, listened = {}
+	{ recursed = warnOnRecursed, listened } = {}
 ) => {
 	const signal = {}
 
@@ -23,12 +23,12 @@ export const createSignal = (
 	let currentListenerPreventedReason
 	let currentListenerPreventNext
 	let currentListenerPreventNextReason
-	const isListened = () => listeners.some(listener => listener.isEnabled())
+	const isListened = () => listeners.length > 0
 	const has = listener => listeners.includes(listener)
 	let unlistened
 	const listen = (fn) => {
 		// prevent duplicate
-		if (listeners.some(listener => listener === fn)) {
+		if (has(fn)) {
 			return false
 		}
 
@@ -53,16 +53,18 @@ export const createSignal = (
 
 		return remove
 	}
-	// le problème ici c'est que si on change la fonction qu'on apelle, la détection
-	// de fonction qu'on écouterait 2fois ne marche pas mais sinon
-	// ça fonctionnerais, on pourrais avoir une option pour gérer ce cas
-	// ou tout simplement vérifier le duplicata ici, en amont
-	// par contre has(listener) ne marchera pas non plus et là j'ai pas trop de soluce pour le moment
-	// l'idée derrière tout ça c'est de simplifier listen pour que ça retourne
-	// une fonction et pas un objet listener
-	const listenOnce = fn => listen(fn, 
-		
-	)
+	const listenOnce = fn => {
+		if (has(fn)) {
+			return false
+		}
+		let remove = listen(
+			() => {
+				remove('once')
+				return fn(...args)
+			}
+		}
+		return remove
+	}
 	const clear = () => {
 		listeners.length = 0
 	}
@@ -127,7 +129,6 @@ export const createSignal = (
 
 	Object.assign(signal, {
 		isListened,
-		has,
 		listen,
 		listenOnce,
 		stop,
@@ -168,6 +169,13 @@ const addRetainTalent = ({listen, emit}) => {
 		retain,
 		forget,
 		listen: listenWithRetainTalent,
+		listenOnce: (fn) => {
+			if (retainedArgs) {
+				fn(...retainedArgs)
+				return () => {}
+			}
+			return listenOnce(fn)
+		},
 		emit: emitWithRetainTalent,
 	}
 }
