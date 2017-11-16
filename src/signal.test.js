@@ -5,25 +5,24 @@ import { createSpy, installSpy } from "@dmail/spy"
 import { createTest } from "@dmail/test"
 import {
 	expectFunction,
-	expectObject,
 	expectCalledOnceWith,
 	expectCalledTwiceWith,
+	expectCalledExactly,
 	expectCalledOnceWithoutArgument,
 	expectCalledTwiceWithoutArgument,
 	expectChain,
 	expectTrue,
 	expectFalse,
 	expectNotCalled,
-	expectProperties,
 	expectThrowWith,
-	matchProperties,
-	matchError,
-	matchString
+	matchErrorWith,
+	matchString,
+	expectPropertiesDeep,
 } from "@dmail/expect"
 
 export default createTest({
-	"signal is a function": () => expectFunction(createSignal),
-	"listen returns an object": () => expectObject(createSignal().listen(() => {})),
+	"createSignal is a function": () => expectFunction(createSignal),
+	"listen returns a function": () => expectFunction(createSignal().listen(() => {})),
 	"warnOnRecursed behaviour": () => {
 		const warnSpy = createSpy()
 		installSpy(warnSpy, console, "warn", warnOnRecursed)
@@ -32,233 +31,207 @@ export default createTest({
 	"errorOnRecursed behaviour": () =>
 		expectThrowWith(
 			errorOnRecursed,
-			matchError(
-				matchProperties({
-					message: matchString()
-				})
-			)
+			matchErrorWith({
+				message: matchString(),
+			}),
 		),
-	"disable(), enable(), isEnabled(), isDisabled()": () => {
-		const signal = createSignal()
-		return expectChain(
-			() => expectTrue(signal.isEnabled()),
-			() => signal.disable(),
-			() => expectTrue(signal.isDisabled()),
-			() => signal.enable(),
-			() => expectTrue(signal.isEnabled())
-		)
-	},
-	"has(listener)": () => {
-		const signal = createSignal()
-		const listener = signal.listen(() => {})
-		return expectChain(
-			() => expectTrue(signal.has(listener)),
-			() => listener.remove(),
-			() => expectFalse(signal.has(listener))
-		)
-	},
 	"listen(fn) twice": () => {
-		const signal = createSignal()
+		const { listen } = createSignal()
 		const fn = () => {}
-		signal.listen(fn)
-		return expectFalse(signal.listen(fn))
+		listen(fn)
+		return expectFalse(listen(fn))
 	},
 	"listened called when signal is listened": () => {
-		const unlistened = createSpy()
+		const unlistened = createSpy("unlistened")
 		const listened = createSpy(() => unlistened)
 		const signal = createSignal({
-			listened
+			listened,
 		})
-		const listener = signal.listen(() => {})
+		const removeListener = signal.listen(() => {})
 
 		return expectChain(
 			() => expectCalledOnceWith(listened, signal),
-			() => listener.remove(),
+			() => removeListener(),
 			() => expectCalledOnceWith(unlistened, signal),
 			() => signal.listen(() => {}),
-			() => expectCalledTwiceWith(listened, signal)
+			() => expectCalledTwiceWith(listened, signal),
 		)
 	},
 	"clear()": () => {
-		const signal = createSignal()
-		signal.listen(() => {})
-		signal.clear()
-		return expectFalse(signal.isListened())
+		const { listen, clear, isListened } = createSignal()
+		listen(() => {})
+		clear()
+		return expectFalse(isListened())
 	},
 	"recursed called when signal is recursively emitting": () => {
 		const recursedSpy = createSpy()
-		const signal = createSignal({
-			recursed: recursedSpy
+		const { listen, emit } = createSignal({
+			recursed: recursedSpy,
 		})
 		let emitted = false
-		signal.listen(() => {
+		listen(() => {
 			if (emitted === false) {
 				emitted = true
-				signal.emit()
+				emit()
 			}
 		})
-		signal.emit()
+		emit()
 
 		return expectCalledOnceWithoutArgument(recursedSpy)
 	},
-	"args options": () => {
-		const signal = createSignal({
-			args: [0]
-		})
-		const spy = createSpy()
-		signal.listen(spy)
-		signal.emit(1)
-		return expectCalledOnceWith(spy, 0, 1)
-	},
-	"memorize options": () => {
-		const spy = createSpy()
-		const { emit, listen, forget } = createSignal({
-			memorize: true
-		})
-		const args = [0, 1]
-		emit(...args)
-		listen(spy)
-
-		return expectChain(
-			() => expectCalledOnceWith(spy, ...args),
-			() => {
-				forget()
-				const otherSpy = createSpy()
-				listen(otherSpy)
-				return expectNotCalled(otherSpy)
-			}
-		)
-	},
 	"listenOnce(fn) remove the listener before calling it": () => {
-		const signal = createSignal()
+		const { listenOnce, emit } = createSignal()
 		const spy = createSpy()
-		signal.listenOnce(spy)
-		signal.emit()
-		signal.emit()
+		listenOnce(spy)
+		emit()
+		emit()
 		return expectCalledOnceWithoutArgument(spy)
 	},
-	"emit() while disabled": () => {
-		const { emit, disable } = createSignal()
-		disable()
-		return expectFalse(emit())
+	"listenOnce return false on already listener fn": () => {
+		const { listenOnce } = createSignal()
+		const fn = () => {}
+		listenOnce(fn)
+		return expectFalse(listenOnce(fn))
+	},
+	"listenOnce indicates why listener was removed": () => {
+		const { listenOnce, emit } = createSignal()
+		listenOnce(() => {})
+		return expectPropertiesDeep(emit(), [
+			{
+				removed: true,
+				removedReason: "once",
+				prevented: false,
+				preventedReason: undefined,
+				stopped: false,
+				stoppedReason: undefined,
+				value: undefined,
+			},
+		])
+	},
+	"same function can be listen() and listenOnce() on two different signal": () => {
+		const firstSignal = createSignal()
+		const secondSignal = createSignal()
+		const spy = createSpy()
+
+		firstSignal.listen(spy)
+		secondSignal.listenOnce(spy)
+
+		return expectChain(
+			() => expectNotCalled(spy),
+			() => firstSignal.emit(),
+			() => expectCalledExactly(spy, 1),
+			() => secondSignal.emit(),
+			() => expectCalledExactly(spy, 2),
+			() => secondSignal.emit(),
+			() => expectCalledExactly(spy, 2),
+			() => firstSignal.emit(),
+			() => expectCalledExactly(spy, 3),
+		)
 	},
 	"emit(...args) call listener with args": () => {
-		const signal = createSignal()
+		const { listen, emit } = createSignal()
 		const spy = createSpy()
 		const value = 1
-		signal.listen(spy)
-		signal.emit(value)
+		listen(spy)
+		emit(value)
 
 		return expectCalledOnceWith(spy, value)
 	},
 	"emit() call all listeners": () => {
-		const signal = createSignal()
+		const { listen, emit } = createSignal()
 		const value = 1
 		const firstSpy = createSpy()
 		const secondSpy = createSpy()
-		signal.listen(firstSpy)
-		signal.listen(secondSpy)
-		signal.emit(value)
+		listen(firstSpy)
+		listen(secondSpy)
+		emit(value)
 
 		return expectChain(
 			() => expectCalledOnceWith(firstSpy, value),
-			() => expectCalledOnceWith(secondSpy, value)
-		)
-	},
-	"listener.enable(), listener.disable(), listener.isEnabled(), listener.isDisabled()": () => {
-		const signal = createSignal()
-		const listener = signal.listen(() => {})
-		return expectChain(
-			() => expectTrue(listener.isEnabled()),
-			() => listener.disable(),
-			() => expectTrue(listener.isDisabled()),
-			() => listener.enable(),
-			() => expectTrue(listener.isEnabled())
-		)
-	},
-	"emit() does not call disabled listener": () => {
-		const signal = createSignal()
-		const spy = createSpy()
-		const listener = signal.listen(spy)
-		listener.disable()
-
-		return expectChain(
-			() => expectTrue(listener.isDisabled()),
-			() => expectFalse(listener.isEnabled()),
-			() => {
-				signal.emit()
-				return expectNotCalled(spy)
-			}
+			() => expectCalledOnceWith(secondSpy, value),
 		)
 	},
 	"isListened()": () => {
-		const signal = createSignal()
+		const { isListened, listen } = createSignal()
 		return expectChain(
-			() => expectFalse(signal.isListened()),
+			() => expectFalse(isListened()),
 			() => {
-				const listener = signal.listen(() => {})
-				return expectTrue(signal.isListened()).then(() => {
-					listener.disable()
-					return expectFalse(signal.isListened())
+				const removeListener = listen(() => {})
+				return expectTrue(isListened()).then(() => {
+					removeListener()
 				})
-			}
+			},
+			() => expectFalse(isListened()),
 		)
 	},
-	"listener.remove() called on first listener during emit": () => {
-		let firstListener
-		const a = createSpy(() => firstListener.remove())
+	"removeListener(reason)": () => {
+		const { listen, emit } = createSignal()
+		let remove
+		remove = listen(() => {
+			remove("reason")
+		})
+		return expectPropertiesDeep(emit(), [
+			{
+				removed: true,
+				removedReason: "reason",
+				prevented: false,
+				preventedReason: undefined,
+				stopped: false,
+				stoppedReason: undefined,
+				value: undefined,
+			},
+		])
+	},
+	"removeListener() called on first listener during emit": () => {
+		let removeFirstListener
+		const a = createSpy(() => removeFirstListener())
 		const b = createSpy()
-		const signal = createSignal()
-		firstListener = signal.listen(a)
-		signal.listen(b)
-		signal.emit()
-		signal.emit()
+		const { listen, emit } = createSignal()
+		removeFirstListener = listen(a)
+		listen(b)
+		emit()
+		emit()
 		return expectChain(
 			() => expectCalledOnceWithoutArgument(a),
-			() => expectCalledTwiceWithoutArgument(b)
+			() => expectCalledTwiceWithoutArgument(b),
 		)
 	},
-	"listener.remove() called on last listener during emit": () => {
-		let lastListener
+	"removeListener() called on last listener during emit": () => {
+		let removeLastListener
 		const a = createSpy()
-		const b = createSpy(() => lastListener.remove())
-		const signal = createSignal()
-		signal.listen(a)
-		lastListener = signal.listen(b)
-		signal.emit()
-		signal.emit()
+		const b = createSpy(() => removeLastListener())
+		const { listen, emit } = createSignal()
+		listen(a)
+		removeLastListener = listen(b)
+		emit()
+		emit()
 		return expectChain(
 			() => expectCalledTwiceWithoutArgument(a),
-			() => expectCalledOnceWithoutArgument(b)
+			() => expectCalledOnceWithoutArgument(b),
 		)
 	},
-	"listener.remove() called on middle listener during emit": () => {
-		let middleListener
+	"removeListener() called on middle listener during emit": () => {
+		let removeMiddleListener
 		const a = createSpy()
-		const b = createSpy(() => middleListener.remove())
+		const b = createSpy(() => removeMiddleListener())
 		const c = createSpy()
-		const signal = createSignal()
-		signal.listen(a)
-		middleListener = signal.listen(b)
-		signal.listen(c)
-		signal.emit()
-		signal.emit()
+		const { listen, emit } = createSignal()
+		listen(a)
+		removeMiddleListener = listen(b)
+		listen(c)
+		emit()
+		emit()
 
 		return expectChain(
 			() => expectCalledTwiceWithoutArgument(a),
 			() => expectCalledOnceWithoutArgument(b),
-			() => expectCalledTwiceWithoutArgument(c)
+			() => expectCalledTwiceWithoutArgument(c),
 		)
 	},
-	"listener.remove() called on already removed listener": () => {
+	"removeListener() called on already removed listener": () => {
 		const { listen } = createSignal()
-		const listener = listen(() => {})
-		const { remove } = listener
-		return expectChain(
-			() => expectTrue(remove()),
-			() => expectFalse(remove()),
-			() => expectFalse(listener.remove())
-		)
+		const remove = listen(() => {})
+		return expectChain(() => expectTrue(remove()), () => expectFalse(remove()))
 	},
 	"stop(reason)": () => {
 		const { stop, listen, emit } = createSignal()
@@ -268,64 +241,82 @@ export default createTest({
 			stop(reason)
 			return value
 		})
-		return expectProperties(emit(), [
-			matchProperties({
+		return expectPropertiesDeep(emit(), [
+			{
 				removed: false,
 				removedReason: undefined,
 				prevented: false,
 				preventedReason: undefined,
-				preventNext: true,
-				preventNextReason: reason,
-				value
-			})
+				stopped: true,
+				stoppedReason: reason,
+				value,
+			},
 		])
-	},
-	"listener.preventNext(reason)": () => {
-		const { listen, emit } = createSignal()
-		let listenerA
-		const reason = "foo"
-		const value = 1
-		const firstSpy = createSpy(() => {
-			listenerA.preventNext(reason)
-			return value
-		})
-		const secondSpy = createSpy()
-		listenerA = listen(firstSpy)
-		listen(secondSpy)
-
-		return expectChain(
-			() => emit(),
-			executions =>
-				expectProperties(executions, [
-					matchProperties({
-						removed: false,
-						removedReason: undefined,
-						prevented: false,
-						preventedReason: undefined,
-						preventNext: true,
-						preventNextReason: reason,
-						value
-					})
-				]),
-			() => expectCalledOnceWithoutArgument(firstSpy),
-			() => expectNotCalled(secondSpy)
-		)
 	},
 	"fn returning false": () => {
-		const signal = createSignal()
-		signal.listen(() => false)
-		return expectProperties(signal.emit(), [
-			matchProperties({
+		const { listen, emit } = createSignal()
+		listen(() => false)
+		listen(() => {})
+		return expectPropertiesDeep(emit(), [
+			{
+				removed: false,
+				removedReason: undefined,
+				stopped: true,
+				stoppedReason: "returned false",
+				prevented: false,
+				preventedReason: undefined,
+				value: false,
+			},
+			{
+				removed: false,
+				removedReason: undefined,
+				stopped: false,
+				stoppedReason: undefined,
+				prevented: true,
+				preventedReason: "a previous listener stopped",
+				value: undefined,
+			},
+		])
+	},
+	"fn calling stop then returning false": () => {
+		const { listen, emit, stop } = createSignal()
+		listen(() => {
+			stop("reason")
+			return false
+		})
+		return expectPropertiesDeep(emit(), [
+			{
 				removed: false,
 				removedReason: undefined,
 				prevented: false,
 				preventedReason: undefined,
-				preventNext: true,
-				preventNextReason: "returned false",
-				value: false
-			})
+				stopped: true,
+				stoppedReason: "reason",
+				value: false,
+			},
 		])
-	}
-	// "execution state is prevented & stateReason is disabled for disabled listener"
-	// "error is thrown when recursively emiting"(signal)
+	},
+	"smart option": () => {
+		const spy = createSpy()
+		const { emit, listen, listenOnce } = createSignal({ smart: true })
+		const args = [0, 1]
+		listen(spy)
+
+		return expectChain(
+			() => expectFalse(listen(spy)),
+			() => expectNotCalled(spy),
+			() => emit(...args),
+			() => expectCalledOnceWith(spy, ...args),
+			() => {
+				const nextSpy = createSpy()
+				listen(nextSpy)
+				return expectCalledOnceWith(nextSpy, ...args)
+			},
+			() => {
+				const onceSpy = createSpy()
+				const removeListenOnce = listenOnce(onceSpy)
+				return expectCalledOnceWith(onceSpy, ...args).then(() => expectFalse(removeListenOnce()))
+			},
+		)
+	},
 })

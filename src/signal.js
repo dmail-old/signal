@@ -11,9 +11,7 @@ export const errorOnRecursed = () => {
 	throw new Error(recursiveMessage)
 }
 
-export const createSignal = (
-	{ recursed = warnOnRecursed, listened } = {}
-) => {
+export const createSignal = ({ recursed = warnOnRecursed, listened, smart = false } = {}) => {
 	const signal = {}
 
 	const listeners = []
@@ -21,19 +19,16 @@ export const createSignal = (
 	let currentListenerRemovedReason
 	let currentListenerPrevented
 	let currentListenerPreventedReason
-	let currentListenerPreventNext
-	let currentListenerPreventNextReason
-	const isListened = () => listeners.length > 0
-	const has = listener => listeners.includes(listener)
-	let unlistened
-	const listen = (fn) => {
-		// prevent duplicate
-		if (has(fn)) {
-			return false
-		}
+	let currentListenerStopped
+	let currentListenerStoppedReason
+	let previousEmitArgs
 
+	let unlistened
+	const createListener = ({ fn, once = false }) => {
+		const listener = {}
+		const getFunction = () => fn
 		const remove = reason => {
-			let index = listeners.indexOf(fn)
+			let index = listeners.indexOf(listener)
 			if (index > -1) {
 				currentListenerRemoved = true
 				currentListenerRemovedReason = reason
@@ -45,36 +40,75 @@ export const createSignal = (
 			}
 			return false
 		}
+		const notify = (...args) => {
+			if (once) {
+				remove("once")
+			}
+			return fn(...args)
+		}
 
-		listeners.push(fn)
+		Object.assign(listener, {
+			getFunction,
+			remove,
+			notify,
+		})
+		return listener
+	}
+
+	const addListener = listener => {
+		listeners.push(listener)
 		if (listeners.length === 1 && listened) {
 			unlistened = listened(signal)
 		}
-
-		return remove
+		if (smart && previousEmitArgs) {
+			listener.notify(...previousEmitArgs)
+		}
 	}
-	const listenOnce = fn => {
+
+	const isListened = () => listeners.length > 0
+
+	const has = fn => listeners.some(({ getFunction }) => getFunction() === fn)
+
+	const listen = fn => {
+		// prevent duplicate
 		if (has(fn)) {
 			return false
 		}
-		let remove = listen(
-			() => {
-				remove('once')
-				return fn(...args)
-			}
-		}
-		return remove
+
+		const listener = createListener({
+			fn,
+		})
+		addListener(listener)
+
+		return listener.remove
 	}
+
+	const listenOnce = fn => {
+		// prevent duplicate
+		if (has(fn)) {
+			return false
+		}
+		const listener = createListener({
+			fn,
+			once: true,
+		})
+		addListener(listener)
+
+		return listener.remove
+	}
+
 	const clear = () => {
 		listeners.length = 0
 	}
+
 	const stop = reason => {
-		currentListenerPreventNext = true
-		currentListenerPreventNextReason = reason
+		currentListenerStopped = true
+		currentListenerStoppedReason = reason
 	}
 
 	let dispatching = false
 	const emit = (...args) => {
+		previousEmitArgs = args
 		if (dispatching && recursed) {
 			recursed()
 		}
@@ -85,35 +119,45 @@ export const createSignal = (
 		// we use currentListenerPreventNext to be able to stop the loop from a listener
 		const executions = []
 		let iterationIndex = 0
+		let somePreviousListenedStopped = false
 		dispatching = true
 		while (iterationIndex < listeners.length) {
-			const listener = listeners[iterationIndex]
 			currentListenerRemoved = false
 			currentListenerRemovedReason = undefined
-			currentListenerPrevented = false
-			currentListenerPreventedReason = undefined
-			currentListenerPreventNext = false
-			currentListenerPreventNextReason = undefined
-			const currentListenerValue = listener(...args)
+			currentListenerStopped = false
+			currentListenerStoppedReason = undefined
+			let currentListenerValue
 
-			if (currentListenerValue === false && currentListenerPreventNext === false) {
-				currentListenerPreventNext = true
-				currentListenerPreventNextReason = "returned false"
+			if (somePreviousListenedStopped) {
+				currentListenerPrevented = true
+				currentListenerPreventedReason = "a previous listener stopped"
+			} else {
+				currentListenerPrevented = false
+				currentListenerPreventedReason = undefined
+
+				const listener = listeners[iterationIndex]
+				currentListenerValue = listener.notify(...args)
+
+				if (currentListenerValue === false && currentListenerStopped === false) {
+					currentListenerStopped = true
+					currentListenerStoppedReason = "returned false"
+				}
+
+				if (currentListenerStopped) {
+					somePreviousListenedStopped = true
+				}
 			}
 
 			executions.push({
 				removed: currentListenerRemoved,
 				removedReason: currentListenerRemovedReason,
+				stopped: currentListenerStopped,
+				stoppedReason: currentListenerStoppedReason,
 				prevented: currentListenerPrevented,
 				preventedReason: currentListenerPreventedReason,
-				preventNext: currentListenerPreventNext,
-				preventNextReason: currentListenerPreventNextReason,
-				value: currentListenerValue
+				value: currentListenerValue,
 			})
 
-			if (currentListenerPreventNext) {
-				break
-			}
 			// in ['a', 'b', 'c', 'd'], removing 'b' at index 1
 			// when iteration is at index 0, next index must be 1
 			// when iteration is at index 1, next index must be 1
@@ -133,74 +177,8 @@ export const createSignal = (
 		listenOnce,
 		stop,
 		clear,
-		emit
+		emit,
 	})
 
 	return signal
-}
-
-const addRetainTalent = ({listen, emit}) => {
-	let retaining = false
-	let retainedArgs
-	const retain = (...args) => {
-		retaining = true
-	}
-	const forget = () => {
-		retaining = false
-		retainedArgs = undefined
-	}
-	const listenWithRetainTalent = (fn) => {
-		const returnValue = listen(fn)
-		if (returnValue === false) {
-			return false
-		}
-		if (retainedArgs) {
-			fn(...retainedArgs)
-		}
-		return returnValue
-	}
-	const emitWithRetainTalent = (...args) => {
-		if (retaining) {
-			retainedArgs = args
-		}
-		return emit(...args)
-	}
-	return {
-		retain,
-		forget,
-		listen: listenWithRetainTalent,
-		listenOnce: (fn) => {
-			if (retainedArgs) {
-				fn(...retainedArgs)
-				return () => {}
-			}
-			return listenOnce(fn)
-		},
-		emit: emitWithRetainTalent,
-	}
-}
-
-const addDisableTalent = (fn) => {
-	let enabled = true
-	const enable = () => {
-		enabled = true
-	}
-	const disable = () => {
-		enabled = false
-	}
-	const isEnabled = () => enabled
-	const isDisabled = () => enabled === false
-	
-	return {
-		enable,
-		disable,
-		isEnabled,
-		isDisabled,
-		fn: () => {
-			if (isDisabled()) {
-				return false
-			}
-			return fn(...args)
-		}
-	}
 }
