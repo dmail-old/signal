@@ -3,6 +3,8 @@
 // https://github.com/kriskowal/gtor/blob/master/signals.md
 // https://remysharp.com/2010/07/21/throttling-function-calls
 
+import { createFactory } from "@dmail/mixin"
+
 const recursiveMessage = `emit called recursively, its often the sign of an error.
 You can disable his recursive check doing createSignal({ recursed: null })`
 
@@ -11,174 +13,168 @@ export const errorOnRecursed = () => {
 	throw new Error(recursiveMessage)
 }
 
-export const createSignal = ({ recursed = warnOnRecursed, listened, smart = false } = {}) => {
-	const signal = {}
+export const createSignal = createFactory(
+	({ recursed = warnOnRecursed, listened, smart = false, lastValueOf: getSignal }) => {
+		const listeners = []
+		let currentListenerRemoved
+		let currentListenerRemovedReason
+		let currentListenerPrevented
+		let currentListenerPreventedReason
+		let currentListenerStopped
+		let currentListenerStoppedReason
+		let previousEmitArgs
 
-	const listeners = []
-	let currentListenerRemoved
-	let currentListenerRemovedReason
-	let currentListenerPrevented
-	let currentListenerPreventedReason
-	let currentListenerStopped
-	let currentListenerStoppedReason
-	let previousEmitArgs
-
-	let unlistened
-	const createListener = ({ fn, once = false }) => {
-		const listener = {}
-		const getFunction = () => fn
-		const remove = reason => {
-			let index = listeners.indexOf(listener)
-			if (index > -1) {
-				currentListenerRemoved = true
-				currentListenerRemovedReason = reason
-				listeners.splice(index, 1)
-				if (listeners.length === 0 && unlistened) {
-					unlistened(signal)
+		let unlistened
+		const createListener = createFactory(({ fn, once = false, lastValueOf: getListener }) => {
+			const getFunction = () => fn
+			const remove = reason => {
+				const listener = getListener()
+				let index = listeners.indexOf(listener)
+				if (index > -1) {
+					currentListenerRemoved = true
+					currentListenerRemovedReason = reason
+					listeners.splice(index, 1)
+					if (listeners.length === 0 && unlistened) {
+						const memo = unlistened
+						unlistened = undefined
+						memo(getSignal())
+					}
+					return true
 				}
-				return true
+				return false
 			}
-			return false
-		}
-		const notify = (...args) => {
-			if (once) {
-				remove("once")
+			const notify = (...args) => {
+				if (once) {
+					remove("once")
+				}
+				return fn(...args)
 			}
-			return fn(...args)
-		}
 
-		Object.assign(listener, {
-			getFunction,
-			remove,
-			notify,
+			return {
+				getFunction,
+				remove,
+				notify,
+			}
 		})
-		return listener
-	}
 
-	const addListener = listener => {
-		listeners.push(listener)
-		if (listeners.length === 1 && listened) {
-			unlistened = listened(signal)
-		}
-		if (smart && previousEmitArgs) {
-			listener.notify(...previousEmitArgs)
-		}
-	}
-
-	const isListened = () => listeners.length > 0
-
-	const has = fn => listeners.some(({ getFunction }) => getFunction() === fn)
-
-	const listen = fn => {
-		// prevent duplicate
-		if (has(fn)) {
-			return false
+		const addListener = listener => {
+			if (listeners.length === 0 && listened) {
+				unlistened = listened(getSignal())
+			}
+			listeners.push(listener)
+			if (smart && previousEmitArgs) {
+				listener.notify(...previousEmitArgs)
+			}
 		}
 
-		const listener = createListener({
-			fn,
-		})
-		addListener(listener)
+		const isListened = () => listeners.length > 0
 
-		return listener.remove
-	}
+		const has = fn => listeners.some(({ getFunction }) => getFunction() === fn)
 
-	const listenOnce = fn => {
-		// prevent duplicate
-		if (has(fn)) {
-			return false
-		}
-		const listener = createListener({
-			fn,
-			once: true,
-		})
-		addListener(listener)
+		const listen = fn => {
+			// prevent duplicate
+			if (has(fn)) {
+				return false
+			}
 
-		return listener.remove
-	}
+			const listener = createListener({ fn })
+			addListener(listener)
 
-	const clear = () => {
-		listeners.length = 0
-	}
-
-	const stop = reason => {
-		currentListenerStopped = true
-		currentListenerStoppedReason = reason
-	}
-
-	let dispatching = false
-	const emit = (...args) => {
-		previousEmitArgs = args
-		if (dispatching && recursed) {
-			recursed()
+			return listener.remove
 		}
 
-		// we use dispatching to detect recursive emit() from listener callback
-		// we use currentListenerRemoved to be able to remove a listener during loop execution
-		// we use currentListenerPrevented just to track if the listener callback was actually called
-		// we use currentListenerPreventNext to be able to stop the loop from a listener
-		const executions = []
-		let iterationIndex = 0
-		let somePreviousListenedStopped = false
-		dispatching = true
-		while (iterationIndex < listeners.length) {
-			currentListenerRemoved = false
-			currentListenerRemovedReason = undefined
-			currentListenerStopped = false
-			currentListenerStoppedReason = undefined
-			let currentListenerValue
+		const listenOnce = fn => {
+			// prevent duplicate
+			if (has(fn)) {
+				return false
+			}
+			const listener = createListener({ fn, once: true })
+			addListener(listener)
 
-			if (somePreviousListenedStopped) {
-				currentListenerPrevented = true
-				currentListenerPreventedReason = "a previous listener stopped"
-			} else {
-				currentListenerPrevented = false
-				currentListenerPreventedReason = undefined
+			return listener.remove
+		}
 
-				const listener = listeners[iterationIndex]
-				currentListenerValue = listener.notify(...args)
+		const clear = () => {
+			listeners.length = 0
+		}
 
-				if (currentListenerValue === false && currentListenerStopped === false) {
-					currentListenerStopped = true
-					currentListenerStoppedReason = "returned false"
+		const stop = reason => {
+			currentListenerStopped = true
+			currentListenerStoppedReason = reason
+		}
+
+		let dispatching = false
+		const emit = (...args) => {
+			previousEmitArgs = args
+			if (dispatching && recursed) {
+				recursed()
+			}
+
+			// we use dispatching to detect recursive emit() from listener callback
+			// we use currentListenerRemoved to be able to remove a listener during loop execution
+			// we use currentListenerPrevented just to track if the listener callback was actually called
+			// we use currentListenerPreventNext to be able to stop the loop from a listener
+			const executions = []
+			let iterationIndex = 0
+			let somePreviousListenedStopped = false
+			dispatching = true
+			while (iterationIndex < listeners.length) {
+				currentListenerRemoved = false
+				currentListenerRemovedReason = undefined
+				currentListenerStopped = false
+				currentListenerStoppedReason = undefined
+				let currentListenerValue
+
+				if (somePreviousListenedStopped) {
+					currentListenerPrevented = true
+					currentListenerPreventedReason = "a previous listener stopped"
+				} else {
+					currentListenerPrevented = false
+					currentListenerPreventedReason = undefined
+
+					const listener = listeners[iterationIndex]
+					currentListenerValue = listener.notify(...args)
+
+					if (currentListenerValue === false && currentListenerStopped === false) {
+						currentListenerStopped = true
+						currentListenerStoppedReason = "returned false"
+					}
+
+					if (currentListenerStopped) {
+						somePreviousListenedStopped = true
+					}
 				}
 
-				if (currentListenerStopped) {
-					somePreviousListenedStopped = true
+				executions.push({
+					removed: currentListenerRemoved,
+					removedReason: currentListenerRemovedReason,
+					stopped: currentListenerStopped,
+					stoppedReason: currentListenerStoppedReason,
+					prevented: currentListenerPrevented,
+					preventedReason: currentListenerPreventedReason,
+					value: currentListenerValue,
+				})
+
+				// in ['a', 'b', 'c', 'd'], removing 'b' at index 1
+				// when iteration is at index 0, next index must be 1
+				// when iteration is at index 1, next index must be 1
+				// when iteration is at index 2, next index must be 2
+				if (currentListenerRemoved === false) {
+					iterationIndex++
 				}
 			}
+			dispatching = false
 
-			executions.push({
-				removed: currentListenerRemoved,
-				removedReason: currentListenerRemovedReason,
-				stopped: currentListenerStopped,
-				stoppedReason: currentListenerStoppedReason,
-				prevented: currentListenerPrevented,
-				preventedReason: currentListenerPreventedReason,
-				value: currentListenerValue,
-			})
-
-			// in ['a', 'b', 'c', 'd'], removing 'b' at index 1
-			// when iteration is at index 0, next index must be 1
-			// when iteration is at index 1, next index must be 1
-			// when iteration is at index 2, next index must be 2
-			if (currentListenerRemoved === false) {
-				iterationIndex++
-			}
+			return executions
 		}
-		dispatching = false
 
-		return executions
-	}
-
-	Object.assign(signal, {
-		isListened,
-		listen,
-		listenOnce,
-		stop,
-		clear,
-		emit,
-	})
-
-	return signal
-}
+		return {
+			isListened,
+			listen,
+			listenOnce,
+			stop,
+			clear,
+			emit,
+		}
+	},
+)
