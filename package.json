@@ -1,6 +1,6 @@
 {
 	"name": "@dmail/signal",
-	"version": "3.0.1",
+	"version": "4.0.0",
 	"license": "MIT",
 	"repository": {
 		"type": "git",
@@ -18,23 +18,26 @@
 	"engines": {
 		"node": ">=8.6.0"
 	},
-	"dependencies": {},
+	"dependencies": {
+		"@dmail/mixin": "6.0.0"
+	},
 	"devDependencies": {
 		"@dmail/command": "0.1.1",
 		"@dmail/expect": "2.9.0",
 		"@dmail/prettiest": "1.0.0",
-		"@dmail/shared-config": "2.1.0",
+		"@dmail/shared-config": "3.1.0",
 		"@dmail/spy": "1.0.1",
 		"@dmail/test": "2.2.0",
 		"babel-cli": "7.0.0-beta.0",
 		"babel-core": "7.0.0-beta.0",
 		"babel-eslint": "8.0.0",
+		"babel-plugin-transform-object-rest-spread": "6.26.0",
 		"babel-preset-env": "2.0.0-beta.0",
 		"codecov": "2.3.0",
 		"eslint": "3.19.0",
 		"eslint-plugin-import": "2.6.0",
 		"nyc": "11.2.1",
-		"prettier": "1.8.2",
+		"prettier": "1.9.1",
 		"rimraf": "2.6.2"
 	},
 	"scripts": {
@@ -46,7 +49,7 @@
 		"code-list": "prettiest-list",
 		"code-format": "prettiest",
 		"test-list": "test-list",
-		"test-before": "npm run code-lint && npm run code-format && npm run code-compile",
+		"test-before": "npm run code-clean && npm run code-lint && npm run code-format && npm run code-compile",
 		"test-run": "test-run",
 		"test": "npm run test-before && npm run test-run",
 		"test-cover": "npm run test-before && nyc npm run test-run",

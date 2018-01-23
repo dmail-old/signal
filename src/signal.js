@@ -3,6 +3,8 @@
 // https://github.com/kriskowal/gtor/blob/master/signals.md
 // https://remysharp.com/2010/07/21/throttling-function-calls
 
+import { mixin, pure } from "@dmail/mixin"
+
 const recursiveMessage = `emit called recursively, its often the sign of an error.
 You can disable his recursive check doing createSignal({ recursed: null })`
 
@@ -11,9 +13,8 @@ export const errorOnRecursed = () => {
 	throw new Error(recursiveMessage)
 }
 
-export const createSignal = ({ recursed = warnOnRecursed, listened, smart = false } = {}) => {
-	const signal = {}
-
+const signalTalent = function({ recursed, listened, smart }) {
+	const signal = this
 	const listeners = []
 	let currentListenerRemoved
 	let currentListenerRemovedReason
@@ -24,42 +25,47 @@ export const createSignal = ({ recursed = warnOnRecursed, listened, smart = fals
 	let previousEmitArgs
 
 	let unlistened
-	const createListener = ({ fn, once = false }) => {
-		const listener = {}
-		const getFunction = () => fn
-		const remove = reason => {
-			let index = listeners.indexOf(listener)
-			if (index > -1) {
-				currentListenerRemoved = true
-				currentListenerRemovedReason = reason
-				listeners.splice(index, 1)
-				if (listeners.length === 0 && unlistened) {
-					unlistened(signal)
-				}
-				return true
-			}
-			return false
-		}
-		const notify = (...args) => {
-			if (once) {
-				remove("once")
-			}
-			return fn(...args)
-		}
 
-		Object.assign(listener, {
-			getFunction,
-			remove,
-			notify,
+	const createListener = ({ fn, once = false }) => {
+		return mixin(pure, function() {
+			const getFunction = () => fn
+
+			const remove = (reason) => {
+				const index = listeners.indexOf(this)
+				if (index > -1) {
+					currentListenerRemoved = true
+					currentListenerRemovedReason = reason
+					listeners.splice(index, 1)
+					if (listeners.length === 0 && unlistened) {
+						const memo = unlistened
+						unlistened = undefined
+						memo(signal)
+					}
+					return true
+				}
+				return false
+			}
+
+			const notify = (...args) => {
+				if (once) {
+					remove("once")
+				}
+				return fn(...args)
+			}
+
+			return {
+				getFunction,
+				remove,
+				notify,
+			}
 		})
-		return listener
 	}
 
-	const addListener = listener => {
-		listeners.push(listener)
-		if (listeners.length === 1 && listened) {
-			unlistened = listened(signal)
+	const addListener = (listener) => {
+		if (listeners.length === 0 && listened) {
+			unlistened = listened(this)
 		}
+		listeners.push(listener)
 		if (smart && previousEmitArgs) {
 			listener.notify(...previousEmitArgs)
 		}
@@ -67,31 +73,26 @@ export const createSignal = ({ recursed = warnOnRecursed, listened, smart = fals
 
 	const isListened = () => listeners.length > 0
 
-	const has = fn => listeners.some(({ getFunction }) => getFunction() === fn)
+	const has = (fn) => listeners.some(({ getFunction }) => getFunction() === fn)
 
-	const listen = fn => {
+	const listen = (fn) => {
 		// prevent duplicate
 		if (has(fn)) {
 			return false
 		}
 
-		const listener = createListener({
-			fn,
-		})
+		const listener = createListener({ fn })
 		addListener(listener)
 
 		return listener.remove
 	}
 
-	const listenOnce = fn => {
+	const listenOnce = (fn) => {
 		// prevent duplicate
 		if (has(fn)) {
 			return false
 		}
-		const listener = createListener({
-			fn,
-			once: true,
-		})
+		const listener = createListener({ fn, once: true })
 		addListener(listener)
 
 		return listener.remove
@@ -101,7 +102,7 @@ export const createSignal = ({ recursed = warnOnRecursed, listened, smart = fals
 		listeners.length = 0
 	}
 
-	const stop = reason => {
+	const stop = (reason) => {
 		currentListenerStopped = true
 		currentListenerStoppedReason = reason
 	}
@@ -171,14 +172,16 @@ export const createSignal = ({ recursed = warnOnRecursed, listened, smart = fals
 		return executions
 	}
 
-	Object.assign(signal, {
+	return {
 		isListened,
 		listen,
 		listenOnce,
 		stop,
 		clear,
 		emit,
-	})
+	}
+}
 
-	return signal
+export const createSignal = ({ recursed = warnOnRecursed, listened, smart = false } = {}) => {
+	return mixin(pure, () => ({ recursed, listened, smart }), signalTalent)
 }

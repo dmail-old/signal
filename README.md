@@ -7,7 +7,7 @@
 A signal can register listeners that gets notified when signal emits something
 
 ```javascript
-import { createSignal } from "@dmail/signal"`
+import { createSignal } from "@dmail/signal"
 
 let value
 const listener = (arg) => {
