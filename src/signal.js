@@ -24,6 +24,13 @@ export const createSignal = ({ recursed = warnOnRecursed, listened, smart = fals
 	let previousEmitArgs
 
 	let unlistened
+	const triggerUnlistened = () => {
+		if (unlistened) {
+			unlistened(signal)
+			unlistened = null
+		}
+	}
+
 	const createListener = ({ fn, once = false }) => {
 		const listener = {}
 		const getFunction = () => fn
@@ -33,8 +40,8 @@ export const createSignal = ({ recursed = warnOnRecursed, listened, smart = fals
 				currentListenerRemoved = true
 				currentListenerRemovedReason = reason
 				listeners.splice(index, 1)
-				if (listeners.length === 0 && unlistened) {
-					unlistened(signal)
+				if (listeners.length === 0) {
+					triggerUnlistened()
 				}
 				return true
 			}
@@ -99,6 +106,7 @@ export const createSignal = ({ recursed = warnOnRecursed, listened, smart = fals
 
 	const clear = () => {
 		listeners.length = 0
+		triggerUnlistened()
 	}
 
 	const stop = reason => {
