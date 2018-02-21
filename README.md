@@ -7,24 +7,18 @@
 A signal can register listeners that gets notified when signal emits something
 
 ```javascript
-import { createSignal } from "@dmail/signal"`
+import { createSignal } from "@dmail/signal"
+
+const completed = createSignal()
 
 let value
 const listener = (arg) => {
 	value = arg
 }
-const completed = createSignal()
-
 completed.listen(listener)
-if (value) {
-	throw new Error("signal.listen(listener) must await signal.emit() before calling listener")
-}
 completed.emit("foo")
-if (value === undefined) {
-	if (value) {
-		throw new Error("signal.emit('foo') must call listener with 'foo'")
-	}
-}
+
+value // "foo"
 ```
 
 Check the full [API documentation](./docs/api.md) for more.

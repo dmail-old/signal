@@ -1,6 +1,14 @@
 # Signal api
 
-## listen(listener)
+* [listen(fn)](#listenfn)
+* [listenOnce(fn)](#listenoncefn)
+* [emit(...args)](#emitargs)
+* [isListened()](#islistened)
+* [createSignal({ listened })](#createsignal-listened-)
+* [createSignal({ recursed })](#createsignal-recursed-)
+* [createSignal({ smart })](#createsignal-smart-)
+
+## listen(fn)
 
 Listen expect exactly one argument, a function (called listener). The listener is called when
 signal.emit is called. You can call listen() multiple times.
@@ -10,12 +18,31 @@ import { createSignal } from "@dmail/signal"
 
 const { listen } = createSignal()
 
-const listenerA = () => {}
-const listenerB = () => {}
+const fnA = () => {}
+const fnB = () => {}
 
-listen(listenerA)
-listen(listenerA) // this will return false because duplicate listener are ignored
-listen(listenerB)
+listen(fnA)
+listen(fnA) // this will return false because duplicate listener are ignored
+listen(fnB)
+```
+
+## listenOnce(fn)
+
+listenOnce register a listener that is autoremoved when called
+
+```javascript
+import { createSignal } from "@dmail/signal"
+
+const { listenOnce, emit } = createSignal()
+
+let callCount = 0
+listenOnce(() => {
+	callCount++
+})
+emit()
+emit()
+
+callCount // 1
 ```
 
 ## emit(...args)
@@ -28,7 +55,7 @@ import { createSignal } from "@dmail/signal"
 const { listen, emit } = createSignal()
 
 let sentence = ""
-listen(string => {
+listen((string) => {
 	sentence += string
 })
 emit("hello") // call listeners with "foo"
@@ -50,58 +77,7 @@ listen(() => {})
 isListened() // true
 ```
 
-## listenOnce(listener)
-
-listenOnce register a listener that is autoremoved when called
-
-```javascript
-import { createSignal } from "@dmail/signal"
-
-const { listenOnce, emit, isListened } = createSignal()
-
-listenOnce(() => {})
-isListened() // true
-emit()
-isListened() // false
-```
-
-## Removing a listener
-
-Listen returns a function you can call to remove that listener
-
-```javascript
-import { createSignal } from "@dmail/signal"
-
-const { listen, isListened } = createSignal()
-
-const removeListener = listen(() => {})
-isListened() // true
-removeListener()
-isListened() // false
-```
-
-## stop()
-
-Stop prevents execution of next listeners
-
-```javascript
-import { createSignal } from "@dmail/signal"
-
-const { stop, listen, emit } = createSignal()
-
-const firstListener = () => stop()
-let called = false
-const secondListener = () => {
-	called = true
-}
-
-listen(firstListener)
-listen(secondListener)
-emit()
-// called === false because stop() was called by firstListener
-```
-
-## createSignal({ listened: () => {} })
+## createSignal({ listened })
 
 createSignal accepts a listened function. This function will be called every time isListened()
 transit from false to true. Listened function can return an other function (called unlistened). The
@@ -126,7 +102,7 @@ removeListener()
 // here hasListener === false
 ```
 
-## createSignal({ recursed: () => {} })
+## createSignal({ recursed })
 
 createSignal accepts a recursed function
 
@@ -144,7 +120,7 @@ listen(() => emit()) // calls recursed then throw because infinite recursion
 
 By default recursed is a function that logs a warning in the console.
 
-## createSignal({ smart: true })
+## createSignal({ smart })
 
 createSignal accepts a smart boolean which is false by default. When true a listener function is
 immediatly called if signal has previously emitted something
@@ -156,8 +132,27 @@ const { listen, emit } = createSignal({ smart: true })
 
 emit("foo")
 let value
-listen(arg => {
+listen((arg) => {
 	value = arg
 })
 // here listener is immediatly called so value === "foo"
+```
+
+## Removing a listener
+
+Listen returns a function you can call to remove that listener
+
+```javascript
+import { createSignal } from "@dmail/signal"
+
+const { listen, emit } = createSignal()
+
+let called = false
+const removeListener = listen(() => {
+	called = true
+})
+removeListener()
+emit()
+
+called // false
 ```
