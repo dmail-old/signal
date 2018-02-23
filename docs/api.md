@@ -4,7 +4,7 @@
 * [listenOnce(fn)](#listenoncefn)
 * [emit(...args)](#emitargs)
 * [isListened()](#islistened)
-* [createSignal({ listened })](#createsignal-listened-)
+* [createSignal({ installer })](#createsignal-installer-)
 * [createSignal({ recursed })](#createsignal-recursed-)
 * [createSignal({ smart })](#createsignal-smart-)
 
@@ -77,29 +77,30 @@ listen(() => {})
 isListened() // true
 ```
 
-## createSignal({ listened })
+## createSignal({ installer })
 
-createSignal accepts a listened function. This function will be called every time isListened()
-transit from false to true. Listened function can return an other function (called unlistened). The
-unlistened function will be called when isListened() transit from true to false.
+createSignal accepts an installer function.
+This function will be called every time a first listener is added to signal.
+Installer function can return an other function (called uninstaller). The
+uninstaller function will be called when signal last listener is removed.
 
 ```javascript
 import { createSignal } from "@dmail/signal"
 
-let hasListener = false
-const listened = () => {
-	hasListener = true
+let installed = false
+const installer = () => {
+	installed = true
 	return () => {
-		hasListener = false
+		installed = false
 	}
 }
-const { listen, emit } = createSignal({ listened })
+const { listen, emit } = createSignal({ installer })
 
-// here hasListener === false
+// here installed === false
 const removeListener = listen(() => {})
-// here hasListener === true
+// here installed === true
 removeListener()
-// here hasListener === false
+// here installed === false
 ```
 
 ## createSignal({ recursed })

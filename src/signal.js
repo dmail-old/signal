@@ -11,23 +11,43 @@ export const throwOnRecursed = () => {
 	throw new Error(recursiveMessage)
 }
 
-export const createSignal = ({ recursed = warnOnRecursed, listened, smart = false } = {}) => {
+export const stop = (reason) => {
+	return {
+		instruction: "stop",
+		reason,
+	}
+}
+
+const isStopInstruction = (value) => {
+	return typeof value === "object" && value.instruction === "stop"
+}
+
+export const createSignal = ({ recursed = warnOnRecursed, installer, smart = false } = {}) => {
 	const signal = {}
 
 	const listeners = []
 	let previousEmitArgs
 
-	let unlistened
-	const triggerUnlistened = () => {
-		if (unlistened) {
-			unlistened(signal)
-			unlistened = null
+	let installed = false
+	let uninstaller
+	const uninstall = () => {
+		if (installed === false) {
+			throw new Error("signal not installed")
+		}
+		installed = false
+		if (uninstaller) {
+			uninstaller(signal)
+			uninstaller = null
 		}
 	}
 
-	const triggerListened = () => {
-		if (listened) {
-			unlistened = listened(signal)
+	const install = () => {
+		if (installed) {
+			throw new Error(`signal already installed`)
+		}
+		installed = true
+		if (installer) {
+			uninstaller = installer(signal)
 		}
 	}
 
@@ -50,8 +70,8 @@ export const createSignal = ({ recursed = warnOnRecursed, listened, smart = fals
 			removeReason = reason
 
 			listeners.splice(index, 1)
-			if (listeners.length === 0) {
-				triggerUnlistened()
+			if (listeners.length === 0 && installed) {
+				uninstall()
 			}
 
 			return true
@@ -71,6 +91,9 @@ export const createSignal = ({ recursed = warnOnRecursed, listened, smart = fals
 			if (returnValue === false) {
 				stopped = true
 				stopReason = "returned false"
+			} else if (isStopInstruction(returnValue)) {
+				stopped = true
+				stopReason = returnValue.reason
 			}
 
 			return {
@@ -93,8 +116,8 @@ export const createSignal = ({ recursed = warnOnRecursed, listened, smart = fals
 
 	const addListener = (listener) => {
 		listeners.push(listener)
-		if (listeners.length === 1) {
-			triggerListened()
+		if (listeners.length === 1 && installed === false) {
+			install()
 		}
 		if (smart && previousEmitArgs) {
 			listener.notify(...previousEmitArgs)
@@ -132,16 +155,6 @@ export const createSignal = ({ recursed = warnOnRecursed, listened, smart = fals
 		addListener(listener)
 
 		return listener.remove
-	}
-
-	const removeAllListeners = () => {
-		const savedListeners = listeners.slice()
-		listeners.length = 0
-		triggerUnlistened()
-		return () => {
-			listeners.push(...savedListeners)
-			triggerListened()
-		}
 	}
 
 	let dispatching = false
@@ -183,16 +196,26 @@ export const createSignal = ({ recursed = warnOnRecursed, listened, smart = fals
 		isListened,
 		listen,
 		listenOnce,
-		removeAllListeners,
 		emit,
 		getListeners,
+		install,
+		uninstall,
 	})
 
 	return Object.freeze(signal)
 }
 
-export const createFunctionNotDetectedBySignal = ({ removeAllListeners }, fn) => () => {
-	const restoreListeners = removeAllListeners()
+export const createFunctionNotDetectedBySignal = ({ isListened, uninstall, install }, fn) => () => {
+	let uninstalled = false
+
+	if (isListened()) {
+		uninstalled = true
+		uninstall()
+	}
+
 	fn()
-	restoreListeners()
+
+	if (uninstalled && isListened()) {
+		install()
+	}
 }

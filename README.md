@@ -9,14 +9,13 @@ A signal can register listeners that gets notified when signal emits something
 ```javascript
 import { createSignal } from "@dmail/signal"
 
-const completed = createSignal()
+const { listen, emit } = createSignal()
 
 let value
-const listener = (arg) => {
+listen((arg) => {
 	value = arg
-}
-completed.listen(listener)
-completed.emit("foo")
+})
+emit("foo")
 
 value // "foo"
 ```

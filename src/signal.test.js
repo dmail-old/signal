@@ -1,6 +1,12 @@
 // https://github.com/cowboy/jquery-throttle-debounce/blob/master/unit/unit.js
 
-import { createSignal, warnOnRecursed, throwOnRecursed } from "./signal.js"
+import {
+	createSignal,
+	warnOnRecursed,
+	throwOnRecursed,
+	stop,
+	createFunctionNotDetectedBySignal,
+} from "./signal.js"
 import { createSpy, installSpy } from "@dmail/spy"
 import { test } from "@dmail/test"
 import {
@@ -19,6 +25,7 @@ import {
 	matchString,
 	expectPropertiesDeep,
 } from "@dmail/expect"
+import assert from "assert"
 
 test(() => expectFunction(createSignal))
 
@@ -47,21 +54,44 @@ test(() => {
 	return expectFalse(listen(fn))
 })
 
-// listened/unlistened behaviour
+// installer/uninstaller behaviour
 test(() => {
-	const unlistened = createSpy("unlistened")
-	const listened = createSpy(() => unlistened)
+	const uninstaller = createSpy("uninstaller")
+	const installer = createSpy(() => uninstaller)
 	const signal = createSignal({
-		listened,
+		installer,
 	})
 	const removeListener = signal.listen(() => {})
 
 	return expectChain(
-		() => expectCalledOnceWith(listened, signal),
+		() => expectCalledOnceWith(installer, signal),
 		() => removeListener(),
-		() => expectCalledOnceWith(unlistened, signal),
+		() => expectCalledOnceWith(uninstaller, signal),
 		() => signal.listen(() => {}),
-		() => expectCalledTwiceWith(listened, signal),
+		() => expectCalledTwiceWith(installer, signal),
+	)
+})
+
+// install must not be called once installed
+test(() => {
+	const { install } = createSignal()
+	install()
+	return expectThrowWith(
+		install,
+		matchErrorWith({
+			message: matchString(),
+		}),
+	)
+})
+
+// uninstall must not be called when not installed
+test(() => {
+	const { uninstall } = createSignal()
+	return expectThrowWith(
+		uninstall,
+		matchErrorWith({
+			message: matchString(),
+		}),
 	)
 })
 
@@ -257,6 +287,22 @@ test(() => {
 	])
 })
 
+// stop
+test(() => {
+	const { listen, emit } = createSignal()
+
+	listen(() => stop("foo"))
+	return expectPropertiesDeep(emit(), [
+		{
+			removed: false,
+			removeReason: undefined,
+			stopped: true,
+			stopReason: "foo",
+			returnValue: { instruction: "stop", reason: "foo" },
+		},
+	])
+})
+
 // smart option
 test(() => {
 	const spy = createSpy()
@@ -280,4 +326,67 @@ test(() => {
 			return expectCalledOnceWith(onceSpy, ...args).then(() => expectFalse(removeListenOnce()))
 		},
 	)
+})
+
+// createFunctionNotDetectedBySignal() not listened
+const createInstalledSignal = () => {
+	let installed = false
+	const signal = createSignal({
+		installer: () => {
+			installed = true
+			return () => {
+				installed = false
+			}
+		},
+	})
+
+	return {
+		isInstalled: () => installed,
+		...signal,
+	}
+}
+
+test(() => {
+	const signal = createInstalledSignal()
+
+	assert.equal(signal.isInstalled(), false)
+	createFunctionNotDetectedBySignal(signal, () => {
+		assert.equal(signal.isInstalled(), false)
+	})()
+	assert.equal(signal.isInstalled(), false)
+})
+
+test(() => {
+	const signal = createInstalledSignal()
+	signal.listen(() => {})
+
+	assert.equal(signal.isInstalled(), true)
+	createFunctionNotDetectedBySignal(signal, () => {
+		assert.equal(signal.isInstalled(), false)
+	})()
+	assert.equal(signal.isInstalled(), true)
+})
+
+test(() => {
+	const signal = createInstalledSignal()
+	const remove = signal.listen(() => {})
+
+	assert.equal(signal.isInstalled(), true)
+	createFunctionNotDetectedBySignal(signal, () => {
+		assert.equal(signal.isInstalled(), false)
+		remove()
+	})()
+	assert.equal(signal.isInstalled(), false)
+})
+
+test(() => {
+	const signal = createInstalledSignal()
+
+	assert.equal(signal.isInstalled(), false)
+	createFunctionNotDetectedBySignal(signal, () => {
+		assert.equal(signal.isInstalled(), false)
+		signal.listen(() => {})
+		assert.equal(signal.isInstalled(), true)
+	})()
+	assert.equal(signal.isInstalled(), true)
 })
