@@ -23,6 +23,8 @@ import {
 	expectThrowWith,
 	matchErrorWith,
 	matchString,
+	matchProperties,
+	matchFunction,
 	expectPropertiesDeep,
 } from "@dmail/expect"
 import assert from "assert"
@@ -64,11 +66,19 @@ test(() => {
 	const removeListener = signal.listen(() => {})
 
 	return expectChain(
-		() => expectCalledOnceWith(installer, signal),
+		() =>
+			expectCalledOnceWith(
+				installer,
+				matchProperties({ getListeners: matchFunction(), emit: matchFunction() }),
+			),
 		() => removeListener(),
-		() => expectCalledOnceWith(uninstaller, signal),
+		() => expectCalledOnceWith(uninstaller),
 		() => signal.listen(() => {}),
-		() => expectCalledTwiceWith(installer, signal),
+		() =>
+			expectCalledTwiceWith(
+				installer,
+				matchProperties({ getListeners: matchFunction(), emit: matchFunction() }),
+			),
 	)
 })
 

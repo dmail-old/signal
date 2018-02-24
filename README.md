@@ -4,7 +4,7 @@
 [![build](https://travis-ci.org/dmail/signal.svg?branch=master)](http://travis-ci.org/dmail/signal)
 [![codecov](https://codecov.io/gh/dmail/signal/branch/master/graph/badge.svg)](https://codecov.io/gh/dmail/signal)
 
-A signal can register listeners that gets notified when signal emits something
+A signal can register functions to call when signal emits something
 
 ```javascript
 import { createSignal } from "@dmail/signal"

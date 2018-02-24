@@ -23,10 +23,41 @@ const isStopInstruction = (value) => {
 }
 
 export const createSignal = ({ recursed = warnOnRecursed, installer, smart = false } = {}) => {
-	const signal = {}
-
 	const listeners = []
+
 	let previousEmitArgs
+	let dispatching = false
+	const emit = (...args) => {
+		previousEmitArgs = args
+		if (dispatching && recursed) {
+			recursed()
+		}
+
+		// we use dispatching to detect recursive emit() from listener
+		const executions = []
+		let iterationIndex = 0
+		dispatching = true
+		while (iterationIndex < listeners.length) {
+			const listener = listeners[iterationIndex]
+			const result = listener.notify(...args)
+			executions.push(result)
+
+			if (result.stopped) {
+				break
+			}
+
+			// in ['a', 'b', 'c', 'd'], removing 'b' at index 1
+			// when iteration is at index 0, next index must be 1
+			// when iteration is at index 1, next index must be 1
+			// when iteration is at index 2, next index must be 2
+			if (result.removed === false) {
+				iterationIndex++
+			}
+		}
+		dispatching = false
+
+		return executions
+	}
 
 	let installed = false
 	let uninstaller
@@ -36,7 +67,7 @@ export const createSignal = ({ recursed = warnOnRecursed, installer, smart = fal
 		}
 		installed = false
 		if (uninstaller) {
-			uninstaller(signal)
+			uninstaller()
 			uninstaller = null
 		}
 	}
@@ -47,7 +78,9 @@ export const createSignal = ({ recursed = warnOnRecursed, installer, smart = fal
 		}
 		installed = true
 		if (installer) {
-			uninstaller = installer(signal)
+			const getListeners = () => listeners.slice()
+
+			uninstaller = installer({ getListeners, emit })
 		}
 	}
 
@@ -157,52 +190,14 @@ export const createSignal = ({ recursed = warnOnRecursed, installer, smart = fal
 		return listener.remove
 	}
 
-	let dispatching = false
-	const emit = (...args) => {
-		previousEmitArgs = args
-		if (dispatching && recursed) {
-			recursed()
-		}
-
-		// we use dispatching to detect recursive emit() from listener
-		const executions = []
-		let iterationIndex = 0
-		dispatching = true
-		while (iterationIndex < listeners.length) {
-			const listener = listeners[iterationIndex]
-			const result = listener.notify(...args)
-			executions.push(result)
-
-			if (result.stopped) {
-				break
-			}
-
-			// in ['a', 'b', 'c', 'd'], removing 'b' at index 1
-			// when iteration is at index 0, next index must be 1
-			// when iteration is at index 1, next index must be 1
-			// when iteration is at index 2, next index must be 2
-			if (result.removed === false) {
-				iterationIndex++
-			}
-		}
-		dispatching = false
-
-		return executions
-	}
-
-	const getListeners = () => listeners.slice()
-
-	Object.assign(signal, {
+	return Object.freeze({
 		isListened,
 		listen,
 		listenOnce,
 		emit,
-		getListeners,
 		install,
 		uninstall,
 	})
-
-	return Object.freeze(signal)
 }
 
 export const createFunctionNotDetectedBySignal = ({ isListened, uninstall, install }, fn) => () => {
