@@ -10,8 +10,9 @@
 
 ## listen(fn)
 
-Listen expect exactly one argument, a function (called listener). The listener is called when
-signal.emit is called. You can call listen() multiple times.
+Registers a function that will be called when emit is called.
+You can listen unlimited amount of function.
+Please note there is a duplicate check on fn as shown below.
 
 ```javascript
 import { createSignal } from "@dmail/signal"
@@ -22,13 +23,13 @@ const fnA = () => {}
 const fnB = () => {}
 
 listen(fnA)
-listen(fnA) // this will return false because duplicate listener are ignored
+listen(fnA) // duplicate check: it returns false because fnA is already listening this signal
 listen(fnB)
 ```
 
 ## listenOnce(fn)
 
-listenOnce register a listener that is autoremoved when called
+listenOnce register a function that is autoremoved when called.
 
 ```javascript
 import { createSignal } from "@dmail/signal"
@@ -47,7 +48,7 @@ callCount // 1
 
 ## emit(...args)
 
-Emit will call listeners with provided args
+Emit will call listeners with provided args.
 
 ```javascript
 import { createSignal } from "@dmail/signal"
@@ -58,9 +59,11 @@ let sentence = ""
 listen((string) => {
 	sentence += string
 })
-emit("hello") // call listeners with "foo"
-emit("world") // call listeners with "bar"
-// here sentence === "helloworld"
+
+emit("hello")
+emit("world")
+
+sentence // "helloworld"
 ```
 
 ## isListened()
@@ -73,7 +76,9 @@ import { createSignal } from "@dmail/signal"
 const { listen, isListened } = createSignal()
 
 isListened() // false
+
 listen(() => {})
+
 isListened() // true
 ```
 
@@ -81,26 +86,33 @@ isListened() // true
 
 createSignal accepts an installer function.
 This function will be called every time a first listener is added to signal.
-Installer function can return an other function (called uninstaller). The
-uninstaller function will be called when signal last listener is removed.
+Installer function can return an other function (called uninstaller).
+The uninstaller function will be called when signal last listener is removed.
 
 ```javascript
 import { createSignal } from "@dmail/signal"
 
-let installed = false
-const installer = () => {
-	installed = true
+const installer = ({ emit }) => {
+	document.body.addEventListener("click", emit)
 	return () => {
-		installed = false
+		document.body.removeEventListener("click", emit)
 	}
 }
-const { listen, emit } = createSignal({ installer })
+const { listen } = createSignal({ installer })
 
-// here installed === false
-const removeListener = listen(() => {})
-// here installed === true
+let bodyClickCount = 0
+const removeListener = listen(() => {
+	bodyClickCount++
+})
+document.body.click()
+
+bodyClickCount // 1
+
 removeListener()
-// here installed === false
+
+document.body.click()
+
+bodyClickCount // 1
 ```
 
 ## createSignal({ recursed })
@@ -110,10 +122,7 @@ createSignal accepts a recursed function
 ```javascript
 import { createSignal } from "@dmail/signal"
 
-let containsRecursion = false
-const recursed = () => {
-	containsRecursion = true
-}
+const recursed = () => {}
 const { listen, emit } = createSignal({ recursed })
 
 listen(() => emit()) // calls recursed then throw because infinite recursion
@@ -123,8 +132,8 @@ By default recursed is a function that logs a warning in the console.
 
 ## createSignal({ smart })
 
-createSignal accepts a smart boolean which is false by default. When true a listener function is
-immediatly called if signal has previously emitted something
+createSignal accepts a smart boolean which is false by default.
+When true a listener function is immediatly called if signal has previously emitted something
 
 ```javascript
 import { createSignal } from "@dmail/signal"
