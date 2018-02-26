@@ -5,7 +5,7 @@ import {
 	warnOnRecursed,
 	throwOnRecursed,
 	stop,
-	createFunctionNotDetectedBySignal,
+	callFunctionIgnoredBySignal,
 } from "./signal.js"
 import { createSpy, installSpy } from "@dmail/spy"
 import { test } from "@dmail/test"
@@ -338,65 +338,25 @@ test(() => {
 	)
 })
 
-// createFunctionNotDetectedBySignal() not listened
-const createInstalledSignal = () => {
-	let installed = false
-	const signal = createSignal({
-		installer: () => {
-			installed = true
-			return () => {
-				installed = false
-			}
-		},
+// callFunctionIgnoredBySignal with non listened signal & fn listening something
+test(() => {
+	const signal = createSignal()
+
+	const calls = []
+	signal.listen(() => {
+		calls.push("a")
 	})
 
-	return {
-		isInstalled: () => installed,
-		...signal,
-	}
-}
+	callFunctionIgnoredBySignal(signal, () => {
+		signal.emit()
+		assert.deepEqual(calls, [])
 
-test(() => {
-	const signal = createInstalledSignal()
+		signal.listen(() => calls.push("b"))
+		signal.emit()
 
-	assert.equal(signal.isInstalled(), false)
-	createFunctionNotDetectedBySignal(signal, () => {
-		assert.equal(signal.isInstalled(), false)
-	})()
-	assert.equal(signal.isInstalled(), false)
-})
+		assert.deepEqual(calls, ["b"])
+	})
 
-test(() => {
-	const signal = createInstalledSignal()
-	signal.listen(() => {})
-
-	assert.equal(signal.isInstalled(), true)
-	createFunctionNotDetectedBySignal(signal, () => {
-		assert.equal(signal.isInstalled(), false)
-	})()
-	assert.equal(signal.isInstalled(), true)
-})
-
-test(() => {
-	const signal = createInstalledSignal()
-	const remove = signal.listen(() => {})
-
-	assert.equal(signal.isInstalled(), true)
-	createFunctionNotDetectedBySignal(signal, () => {
-		assert.equal(signal.isInstalled(), false)
-		remove()
-	})()
-	assert.equal(signal.isInstalled(), false)
-})
-
-test(() => {
-	const signal = createInstalledSignal()
-
-	assert.equal(signal.isInstalled(), false)
-	createFunctionNotDetectedBySignal(signal, () => {
-		assert.equal(signal.isInstalled(), false)
-		signal.listen(() => {})
-		assert.equal(signal.isInstalled(), true)
-	})()
-	assert.equal(signal.isInstalled(), true)
+	signal.emit()
+	assert.deepEqual(calls, ["b", "a", "b"])
 })

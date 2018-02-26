@@ -25,6 +25,8 @@ const isStopInstruction = (value) => {
 export const createSignal = ({ recursed = warnOnRecursed, installer, smart = false } = {}) => {
 	const listeners = []
 
+	const getListeners = () => listeners.slice()
+
 	let previousEmitArgs
 	let dispatching = false
 	const emit = (...args) => {
@@ -78,8 +80,6 @@ export const createSignal = ({ recursed = warnOnRecursed, installer, smart = fal
 		}
 		installed = true
 		if (installer) {
-			const getListeners = () => listeners.slice()
-
 			uninstaller = installer({ getListeners, emit })
 		}
 	}
@@ -147,8 +147,8 @@ export const createSignal = ({ recursed = warnOnRecursed, installer, smart = fal
 		return Object.freeze(listener)
 	}
 
-	const addListener = (listener) => {
-		listeners.push(listener)
+	const addListener = (listener, index = listeners.length) => {
+		listeners.splice(index, 0, listener)
 		if (listeners.length === 1 && installed === false) {
 			install()
 		}
@@ -197,20 +197,21 @@ export const createSignal = ({ recursed = warnOnRecursed, installer, smart = fal
 		emit,
 		install,
 		uninstall,
+		getListeners,
+		addListener,
 	})
 }
 
-export const createFunctionNotDetectedBySignal = ({ isListened, uninstall, install }, fn) => () => {
-	let uninstalled = false
+export const callFunctionIgnoredBySignal = ({ getListeners, addListener }, fn) => {
+	const listeners = getListeners()
 
-	if (isListened()) {
-		uninstalled = true
-		uninstall()
-	}
+	listeners.forEach((listener) => {
+		listener.remove("ignored")
+	})
 
 	fn()
 
-	if (uninstalled && isListened()) {
-		install()
-	}
+	listeners.forEach((listener, index) => {
+		addListener(listener, index)
+	})
 }
