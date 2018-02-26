@@ -25,8 +25,6 @@ const isStopInstruction = (value) => {
 export const createSignal = ({ recursed = warnOnRecursed, installer, smart = false } = {}) => {
 	const listeners = []
 
-	const getListeners = () => listeners.slice()
-
 	let previousEmitArgs
 	let dispatching = false
 	const emit = (...args) => {
@@ -61,6 +59,21 @@ export const createSignal = ({ recursed = warnOnRecursed, installer, smart = fal
 		return executions
 	}
 
+	let addListener
+	const removeAllWhileCalling = (fn) => {
+		const beforeCallListeners = listeners.slice()
+
+		beforeCallListeners.forEach((listener) => {
+			listener.remove(`calling ${fn}`)
+		})
+
+		fn()
+
+		beforeCallListeners.forEach((listener, index) => {
+			addListener(listener, index)
+		})
+	}
+
 	let installed = false
 	let uninstaller
 	const uninstall = () => {
@@ -80,7 +93,19 @@ export const createSignal = ({ recursed = warnOnRecursed, installer, smart = fal
 		}
 		installed = true
 		if (installer) {
-			uninstaller = installer({ getListeners, emit })
+			const getListeners = () => listeners.slice()
+
+			uninstaller = installer({ getListeners, emit, removeAllWhileCalling })
+		}
+	}
+
+	addListener = (listener, index = listeners.length) => {
+		listeners.splice(index, 0, listener)
+		if (listeners.length === 1 && installed === false) {
+			install()
+		}
+		if (smart && previousEmitArgs) {
+			listener.notify(...previousEmitArgs)
 		}
 	}
 
@@ -147,16 +172,6 @@ export const createSignal = ({ recursed = warnOnRecursed, installer, smart = fal
 		return Object.freeze(listener)
 	}
 
-	const addListener = (listener, index = listeners.length) => {
-		listeners.splice(index, 0, listener)
-		if (listeners.length === 1 && installed === false) {
-			install()
-		}
-		if (smart && previousEmitArgs) {
-			listener.notify(...previousEmitArgs)
-		}
-	}
-
 	const isListened = () => listeners.length > 0
 
 	const has = (fn) => listeners.some(({ fn: listenerFn }) => listenerFn === fn)
@@ -197,21 +212,6 @@ export const createSignal = ({ recursed = warnOnRecursed, installer, smart = fal
 		emit,
 		install,
 		uninstall,
-		getListeners,
-		addListener,
-	})
-}
-
-export const callFunctionIgnoredBySignal = ({ getListeners, addListener }, fn) => {
-	const listeners = getListeners()
-
-	listeners.forEach((listener) => {
-		listener.remove("ignored")
-	})
-
-	fn()
-
-	listeners.forEach((listener, index) => {
-		addListener(listener, index)
+		removeAllWhileCalling,
 	})
 }

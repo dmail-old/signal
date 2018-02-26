@@ -1,12 +1,6 @@
 // https://github.com/cowboy/jquery-throttle-debounce/blob/master/unit/unit.js
 
-import {
-	createSignal,
-	warnOnRecursed,
-	throwOnRecursed,
-	stop,
-	callFunctionIgnoredBySignal,
-} from "./signal.js"
+import { createSignal, warnOnRecursed, throwOnRecursed, stop } from "./signal.js"
 import { createSpy, installSpy } from "@dmail/spy"
 import { test } from "@dmail/test"
 import {
@@ -64,21 +58,18 @@ test(() => {
 		installer,
 	})
 	const removeListener = signal.listen(() => {})
+	const expectedInstallerArgument = matchProperties({
+		emit: matchFunction(),
+		getListeners: matchFunction(),
+		removeAllWhileCalling: matchFunction(),
+	})
 
 	return expectChain(
-		() =>
-			expectCalledOnceWith(
-				installer,
-				matchProperties({ getListeners: matchFunction(), emit: matchFunction() }),
-			),
+		() => expectCalledOnceWith(installer, expectedInstallerArgument),
 		() => removeListener(),
 		() => expectCalledOnceWith(uninstaller),
 		() => signal.listen(() => {}),
-		() =>
-			expectCalledTwiceWith(
-				installer,
-				matchProperties({ getListeners: matchFunction(), emit: matchFunction() }),
-			),
+		() => expectCalledTwiceWith(installer, expectedInstallerArgument),
 	)
 })
 
@@ -347,7 +338,7 @@ test(() => {
 		calls.push("a")
 	})
 
-	callFunctionIgnoredBySignal(signal, () => {
+	signal.removeAllWhileCalling(() => {
 		signal.emit()
 		assert.deepEqual(calls, [])
 
