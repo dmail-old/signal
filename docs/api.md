@@ -38,7 +38,7 @@ const { listenOnce, emit } = createSignal()
 
 let callCount = 0
 listenOnce(() => {
-	callCount++
+  callCount++
 })
 emit()
 emit()
@@ -57,7 +57,7 @@ const { listen, emit } = createSignal()
 
 let sentence = ""
 listen((string) => {
-	sentence += string
+  sentence += string
 })
 
 emit("hello")
@@ -93,16 +93,16 @@ The uninstaller function will be called when signal last listener is removed.
 import { createSignal } from "@dmail/signal"
 
 const installer = ({ emit }) => {
-	document.body.addEventListener("click", emit)
-	return () => {
-		document.body.removeEventListener("click", emit)
-	}
+  document.body.addEventListener("click", emit)
+  return () => {
+    document.body.removeEventListener("click", emit)
+  }
 }
 const { listen } = createSignal({ installer })
 
 let bodyClickCount = 0
 const removeListener = listen(() => {
-	bodyClickCount++
+  bodyClickCount++
 })
 document.body.click()
 
@@ -143,7 +143,7 @@ const { listen, emit } = createSignal({ smart: true })
 emit("foo")
 let value
 listen((arg) => {
-	value = arg
+  value = arg
 })
 // here listener is immediatly called so value === "foo"
 ```
@@ -159,7 +159,7 @@ const { listen, emit } = createSignal()
 
 let called = false
 const removeListener = listen(() => {
-	called = true
+  called = true
 })
 removeListener()
 emit()

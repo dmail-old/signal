@@ -13,7 +13,7 @@ const { listen, emit } = createSignal()
 
 let value
 listen((arg) => {
-	value = arg
+  value = arg
 })
 emit("foo")
 
