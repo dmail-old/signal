@@ -46,8 +46,8 @@ test(() => {
 test(() => {
   const { listen } = createSignal()
   const fn = () => {}
-  listen(fn)
-  return expectFalse(listen(fn))
+  const listener = listen(fn)
+  return expectTrue(listener === listen(fn))
 })
 
 // installer/uninstaller behaviour
@@ -57,7 +57,7 @@ test(() => {
   const signal = createSignal({
     installer,
   })
-  const removeListener = signal.listen(() => {})
+  const removeListener = signal.listen(() => {}).remove
   const expectedInstallerArgument = matchProperties({
     emit: matchFunction(),
     getListeners: matchFunction(),
@@ -70,29 +70,6 @@ test(() => {
     () => expectCalledOnceWith(uninstaller),
     () => signal.listen(() => {}),
     () => expectCalledTwiceWith(installer, expectedInstallerArgument),
-  )
-})
-
-// install must not be called once installed
-test(() => {
-  const { install } = createSignal()
-  install()
-  return expectThrowWith(
-    install,
-    matchErrorWith({
-      message: matchString(),
-    }),
-  )
-})
-
-// uninstall must not be called when not installed
-test(() => {
-  const { uninstall } = createSignal()
-  return expectThrowWith(
-    uninstall,
-    matchErrorWith({
-      message: matchString(),
-    }),
   )
 })
 
@@ -124,12 +101,12 @@ test(() => {
   return expectCalledOnceWithoutArgument(spy)
 })
 
-// listenOnce return false on already listener fn
+// listenOnce return previous listener on already listened fn
 test(() => {
   const { listenOnce } = createSignal()
   const fn = () => {}
-  listenOnce(fn)
-  return expectFalse(listenOnce(fn))
+  const listener = listenOnce(fn)
+  return expectTrue(listener === listenOnce(fn))
 })
 
 // listenOnce indicates why listener was removed
@@ -199,7 +176,7 @@ test(() => {
 // "removeListener(reason)"
 test(() => {
   const { listen, emit } = createSignal()
-  const remove = listen(() => {
+  const { remove } = listen(() => {
     remove("reason")
   })
   return expectPropertiesDeep(emit(), [
@@ -219,7 +196,7 @@ test(() => {
   const a = createSpy(() => removeFirstListener())
   const b = createSpy()
   const { listen, emit } = createSignal()
-  removeFirstListener = listen(a)
+  removeFirstListener = listen(a).remove
   listen(b)
   emit()
   emit()
@@ -236,7 +213,7 @@ test(() => {
   const b = createSpy(() => removeLastListener())
   const { listen, emit } = createSignal()
   listen(a)
-  removeLastListener = listen(b)
+  removeLastListener = listen(b).remove
   emit()
   emit()
   return expectChain(
@@ -253,7 +230,7 @@ test(() => {
   const c = createSpy()
   const { listen, emit } = createSignal()
   listen(a)
-  removeMiddleListener = listen(b)
+  removeMiddleListener = listen(b).remove
   listen(c)
   emit()
   emit()
@@ -268,7 +245,7 @@ test(() => {
 // removeListener() called on already removed listener
 test(() => {
   const { listen } = createSignal()
-  const remove = listen(() => {})
+  const { remove } = listen(() => {})
   return expectChain(() => expectTrue(remove()), () => expectFalse(remove()))
 })
 
@@ -309,10 +286,10 @@ test(() => {
   const spy = createSpy()
   const { emit, listen, listenOnce } = createSignal({ smart: true })
   const args = [0, 1]
-  listen(spy)
+  const listener = listen(spy)
 
   return expectChain(
-    () => expectFalse(listen(spy)),
+    () => expectTrue(listener === listen(spy)),
     () => expectNotCalled(spy),
     () => emit(...args),
     () => expectCalledOnceWith(spy, ...args),
@@ -323,31 +300,62 @@ test(() => {
     },
     () => {
       const onceSpy = createSpy()
-      const removeListenOnce = listenOnce(onceSpy)
+      const removeListenOnce = listenOnce(onceSpy).remove
       return expectCalledOnceWith(onceSpy, ...args).then(() => expectFalse(removeListenOnce()))
     },
   )
 })
 
-// callFunctionIgnoredBySignal with non listened signal & fn listening something
+// removeAllWhileCalling must prevent listener call before function restore them after
+// and installer/uninstaller are updated accordingly
 test(() => {
-  const signal = createSignal()
-
-  const calls = []
-  signal.listen(() => {
-    calls.push("a")
+  let installed
+  const installer = () => {
+    installed = true
+    return () => {
+      installed = false
+    }
+  }
+  const { listen, emit, removeAllWhileCalling } = createSignal({
+    installer,
   })
 
-  signal.removeAllWhileCalling(() => {
-    signal.emit()
-    assert.deepEqual(calls, [])
+  const getEmitReturnValues = () => {
+    return emit().map(({ returnValue }) => returnValue)
+  }
 
-    signal.listen(() => calls.push("b"))
-    signal.emit()
+  const previousListeners = [listen(() => "a"), listen(() => "b"), listen(() => "c")]
 
-    assert.deepEqual(calls, ["b"])
+  assert.equal(installed, true)
+  removeAllWhileCalling(() => {
+    assert.equal(installed, false)
+    assert.deepEqual(getEmitReturnValues(), [])
+
+    listen(() => "d")
+    listen(() => "e")
+    assert.equal(installed, true)
+    assert.deepEqual(getEmitReturnValues(), ["d", "e"])
+
+    previousListeners[1].remove()
+  })
+  assert.equal(installed, true)
+  assert.deepEqual(getEmitReturnValues(), ["a", "c", "d", "e"])
+})
+
+test(() => {
+  let installed
+  const installer = () => {
+    installed = true
+    return () => {
+      installed = false
+    }
+  }
+  const { listen, emit, removeAllWhileCalling } = createSignal({
+    installer,
   })
 
-  signal.emit()
-  assert.deepEqual(calls, ["b", "a", "b"])
+  listen(() => "a")
+  removeAllWhileCalling(() => {})
+  assert.equal(installed, true)
+  assert.equal(emit()[0].returnValue, "a")
 })

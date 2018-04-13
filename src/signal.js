@@ -23,7 +23,7 @@ const isStopInstruction = (value) => {
 }
 
 export const createSignal = ({ recursed = warnOnRecursed, installer, smart = false } = {}) => {
-  const listeners = []
+  let listeners = []
 
   let previousEmitArgs
   let dispatching = false
@@ -59,27 +59,24 @@ export const createSignal = ({ recursed = warnOnRecursed, installer, smart = fal
     return executions
   }
 
-  let addListener
-  const removeAllWhileCalling = (fn) => {
-    const beforeCallListeners = listeners.slice()
-
-    beforeCallListeners.forEach((listener) => {
-      listener.remove(`calling ${fn}`)
-    })
-
-    fn()
-
-    beforeCallListeners.forEach((listener, index) => {
-      addListener(listener, index)
-    })
-  }
-
   let installed = false
   let uninstaller
-  const uninstall = () => {
-    if (installed === false) {
-      throw new Error("signal not installed")
+  const install = () => {
+    installed = true
+    if (installer) {
+      const getListeners = () => listeners.slice()
+
+      uninstaller = installer({
+        getListeners,
+        emit,
+        // because install & removeAllWhildCalling are interdependant, disable eslint below
+        // eslint-disable-next-line no-use-before-define
+        removeAllWhileCalling,
+      })
     }
+  }
+
+  const uninstall = () => {
     installed = false
     if (uninstaller) {
       uninstaller()
@@ -87,47 +84,61 @@ export const createSignal = ({ recursed = warnOnRecursed, installer, smart = fal
     }
   }
 
-  const install = () => {
-    if (installed) {
-      throw new Error(`signal already installed`)
-    }
-    installed = true
-    if (installer) {
-      const getListeners = () => listeners.slice()
+  const removeAllWhileCalling = (fn) => {
+    const beforeCallListeners = listeners.slice()
+    listeners.length = 0
+    uninstall()
 
-      uninstaller = installer({ getListeners, emit, removeAllWhileCalling })
+    fn()
+
+    if (beforeCallListeners.length > 0) {
+      if (listeners.length === 0) {
+        // no listeners added in between
+        install()
+        listeners = beforeCallListeners
+      } else {
+        // some listener added during fn() execution
+        // no need to reinstall, it has been done by added listener
+        let previousIndex = 0
+        beforeCallListeners.forEach((listener) => {
+          if (listener.isRemoved() === false) {
+            listeners.splice(previousIndex, 0, listener)
+            previousIndex++
+          }
+        })
+      }
     }
   }
 
-  addListener = (listener, index = listeners.length) => {
-    listeners.splice(index, 0, listener)
-    if (listeners.length === 1 && installed === false) {
-      install()
-    }
-    if (smart && previousEmitArgs) {
-      listener.notify(...previousEmitArgs)
-    }
-  }
+  const isListened = () => listeners.length > 0
 
   const createListener = ({ fn, once = false }) => {
     const listener = {}
 
-    let removed
+    let removed = false
     let removeReason
     let returnValue
-    let stopped
+    let stopped = false
     let stopReason
 
+    const isRemoved = () => removed
+
     const remove = (reason) => {
-      const index = listeners.indexOf(listener)
-      if (index === -1) {
+      if (removed) {
         return false
       }
 
       removed = true
       removeReason = reason
 
-      listeners.splice(index, 1)
+      const index = listeners.indexOf(listener)
+      if (index > -1) {
+        // not being part of listeners is allowed and happens
+        // when remove() called during fn call wrapped by removeAllWhileCalling(fn)
+        // in that case no need to remove it from listeners
+        listeners.splice(index, 1)
+      }
+
       if (listeners.length === 0 && installed) {
         uninstall()
       }
@@ -136,7 +147,6 @@ export const createSignal = ({ recursed = warnOnRecursed, installer, smart = fal
     }
 
     const notify = (...args) => {
-      removed = false
       removeReason = undefined
       stopped = false
       stopReason = undefined
@@ -166,52 +176,40 @@ export const createSignal = ({ recursed = warnOnRecursed, installer, smart = fal
     Object.assign(listener, {
       fn,
       remove,
+      isRemoved,
       notify,
     })
 
     return Object.freeze(listener)
   }
 
-  const isListened = () => listeners.length > 0
-
-  const has = (fn) => listeners.some(({ fn: listenerFn }) => listenerFn === fn)
-
-  const listen = (fn) => {
-    // prevent duplicate
-    if (has(fn)) {
-      return false
+  const createListenAPI = (createListener) => (fn) => {
+    const existingListener = listeners.find((listener) => listener.fn === fn)
+    if (existingListener) {
+      return existingListener
     }
 
-    const listener = createListener({
-      fn,
-    })
-    addListener(listener)
-
-    return listener.remove
-  }
-
-  const listenOnce = (fn) => {
-    // prevent duplicate
-    if (has(fn)) {
-      return false
+    const listener = createListener(fn)
+    listeners.push(listener)
+    if (listeners.length === 1 && installed === false) {
+      install()
+    }
+    if (smart && previousEmitArgs) {
+      listener.notify(...previousEmitArgs)
     }
 
-    const listener = createListener({
-      fn,
-      once: true,
-    })
-    addListener(listener)
-
-    return listener.remove
+    return listener
   }
+
+  const listen = createListenAPI((fn) => createListener({ fn }))
+
+  const listenOnce = createListenAPI((fn) => createListener({ fn, once: true }))
 
   return Object.freeze({
     isListened,
     listen,
     listenOnce,
     emit,
-    install,
-    uninstall,
     removeAllWhileCalling,
   })
 }

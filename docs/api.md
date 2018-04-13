@@ -1,31 +1,45 @@
 # Signal api
 
+* [isListened()](#islistened)
 * [listen(fn)](#listenfn)
 * [listenOnce(fn)](#listenoncefn)
 * [emit(...args)](#emitargs)
-* [isListened()](#islistened)
+* [removeAllWhileCalling(fn)](#removeallwhilecallingfn)
 * [createSignal({ installer })](#createsignal-installer-)
 * [createSignal({ recursed })](#createsignal-recursed-)
 * [createSignal({ smart })](#createsignal-smart-)
+
+## isListened()
+
+isListener returns if there is a listener on the signal
+
+```javascript
+import { createSignal } from "@dmail/signal"
+
+const { listen, isListened } = createSignal()
+
+isListened() // false
+
+listen(() => {})
+
+isListened() // true
+```
 
 ## listen(fn)
 
 Registers a function that will be called when emit is called.
 You can listen unlimited amount of function.
-Please note there is a duplicate check on fn as shown below.
 
 ```javascript
 import { createSignal } from "@dmail/signal"
 
 const { listen } = createSignal()
 
-const fnA = () => {}
-const fnB = () => {}
-
-listen(fnA)
-listen(fnA) // duplicate check: it returns false because fnA is already listening this signal
-listen(fnB)
+listen(() => {})
+listen(() => {})
 ```
+
+Advanced note: listen(fn) returns the same internal listener object when there is already a listener for fn. It means fn is called once even when you write `listen(fn); listen(fn); emit();`
 
 ## listenOnce(fn)
 
@@ -66,22 +80,6 @@ emit("world")
 sentence // "helloworld"
 ```
 
-## isListened()
-
-isListener returns if there is a listener on the signal
-
-```javascript
-import { createSignal } from "@dmail/signal"
-
-const { listen, isListened } = createSignal()
-
-isListened() // false
-
-listen(() => {})
-
-isListened() // true
-```
-
 ## createSignal({ installer })
 
 createSignal accepts an installer function.
@@ -93,26 +91,22 @@ The uninstaller function will be called when signal last listener is removed.
 import { createSignal } from "@dmail/signal"
 
 const installer = ({ emit }) => {
-  document.body.addEventListener("click", emit)
+  // you should use addEventListener/removeEventListener here but this is to show
+  // that document.body.onclick wil be undefined when last listener is removed
+  document.body.onclick = emit
   return () => {
-    document.body.removeEventListener("click", emit)
+    document.body.onclick = undefined
   }
 }
-const { listen } = createSignal({ installer })
+const { listen, emit } = createSignal({ installer })
 
-let bodyClickCount = 0
-const removeListener = listen(() => {
-  bodyClickCount++
-})
-document.body.click()
+document.body.onclick // undefined
 
-bodyClickCount // 1
+const { remove } = listen(() => {})
+document.body.onclick // emit
 
-removeListener()
-
-document.body.click()
-
-bodyClickCount // 1
+remove()
+document.body.onclick // undefined
 ```
 
 ## createSignal({ recursed })
@@ -148,6 +142,39 @@ listen((arg) => {
 // here listener is immediatly called so value === "foo"
 ```
 
+## removeAllWhileCalling(fn)
+
+Call fn immedatly ensuring no existing listener or install logic happens and restore them afterwards.
+
+```javascript
+import { createSignal } from "@dmail/signal"
+
+const { removeAllWhileCalling, listen } = createSignal({
+  installer: ({ emit }) => {
+    document.body.onclick = () => {
+      alert("clicked")
+      emit()
+    }
+    return () => {
+      document.body.onclick = undefined
+    }
+  },
+})
+
+listen(() => alert("click happened"))
+
+removeAllWhileCalling(() => {
+  // during this function execution, previous listener are removed
+  // and any install behaviour is cleaned too
+  // ensuring the default behaviour happens
+  // you can safely write
+  document.body.click()
+  // and no alert() will happen
+})
+
+document.body.click() // will show first alert('clicked') then alert('click happened')
+```
+
 ## Removing a listener
 
 Listen returns a function you can call to remove that listener
@@ -158,10 +185,10 @@ import { createSignal } from "@dmail/signal"
 const { listen, emit } = createSignal()
 
 let called = false
-const removeListener = listen(() => {
+const listener = listen(() => {
   called = true
 })
-removeListener()
+listener.remove()
 emit()
 
 called // false
