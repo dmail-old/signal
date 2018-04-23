@@ -59,10 +59,9 @@ import { createSignal } from "@dmail/signal"
 
 const { listen } = createSignal()
 const fn = () => {}
-const listenerA = listen(fn)
-const listenerB = listen(fn)
 
-listenerA === listenerB // true
+listen(fn)
+listen(fn) // throw with `there is already a listener for that fn on this signal`
 ```
 
 ## isListened()

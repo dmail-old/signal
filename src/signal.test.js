@@ -18,7 +18,6 @@ import {
   matchErrorWith,
   matchString,
   matchProperties,
-  matchFunction,
   expectPropertiesDeep,
   expectResolveWith,
 } from "@dmail/expect"
@@ -47,8 +46,13 @@ test(() => {
 test(() => {
   const { listen } = createSignal()
   const fn = () => {}
-  const listener = listen(fn)
-  return expectTrue(listener === listen(fn))
+  listen(fn)
+  return expectThrowWith(
+    () => listen(fn),
+    matchErrorWith({
+      message: matchString(),
+    }),
+  )
 })
 
 // installer/uninstaller behaviour
@@ -59,18 +63,13 @@ test(() => {
     installer,
   })
   const removeListener = signal.listen(() => {}).remove
-  const expectedInstallerArgument = matchProperties({
-    emit: matchFunction(),
-    removeAllWhileCalling: matchFunction(),
-    callWhen: matchFunction(),
-  })
 
   return expectChain(
-    () => expectCalledOnceWith(installer, expectedInstallerArgument),
+    () => expectCalledOnceWith(installer, signal),
     () => removeListener(),
     () => expectCalledOnceWith(uninstaller),
     () => signal.listen(() => {}),
-    () => expectCalledTwiceWith(installer, expectedInstallerArgument),
+    () => expectCalledTwiceWith(installer, signal),
   )
 })
 
@@ -225,14 +224,6 @@ test(() => {
   return expectChain(() => expectTrue(remove()), () => expectFalse(remove()))
 })
 
-// fn returning false
-test(() => {
-  const { listen, emit } = createSignal()
-  listen(() => false)
-  listen(() => "foo")
-  return expectPropertiesDeep(emit(), [false])
-})
-
 // smart option
 test(() => {
   const spy = createSpy()
@@ -258,7 +249,7 @@ test(() => {
   )
 })
 
-// removeAllWhileCalling must prevent listener call before function restore them after
+// disableWhileCalling must prevent listener call before function restore them after
 // and installer/uninstaller are updated accordingly
 test(() => {
   let installed
@@ -268,29 +259,30 @@ test(() => {
       installed = false
     }
   }
-  const { listen, emit, removeAllWhileCalling } = createSignal({
+  const { listen, emit, disableWhileCalling } = createSignal({
     installer,
   })
-
-  const getEmitReturnValues = () => emit()
 
   const previousListeners = [listen(() => "a"), listen(() => "b"), listen(() => "c")]
 
   assert.equal(installed, true)
-  removeAllWhileCalling(() => {
+  disableWhileCalling(() => {
     assert.equal(installed, false)
-    assert.deepEqual(getEmitReturnValues(), [])
+    assert.deepEqual(emit(), [])
 
     listen(() => "d")
     listen(() => "e")
     assert.equal(installed, true)
-    assert.deepEqual(getEmitReturnValues(), ["d", "e"])
+    assert.deepEqual(emit(), ["d", "e"])
 
     previousListeners[1].remove()
   })
   assert.equal(installed, true)
-  assert.deepEqual(getEmitReturnValues(), ["a", "c", "d", "e"])
+  assert.deepEqual(emit(), ["a", "c", "d", "e"])
 })
+
+// TODO: ajouter un test pour vérif que pendant disableWhileCalling
+// il y a toujours une erreur sur duplicate listen(fn)
 
 test(() => {
   let installed
@@ -309,6 +301,20 @@ test(() => {
   assert.equal(installed, true)
   assert.equal(emit()[0], "a")
 })
+
+// isEmitting
+test.focus(() => {
+  const { isEmitting, listen, emit } = createSignal()
+
+  listen(() => isEmitting())
+  listen(() => isEmitting())
+  assert.equal(isEmitting(), false)
+  assert.deepEqual(emit(), [true, true])
+  assert.equal(isEmitting(), false)
+})
+
+// getEmitExecution
+// stop/shortcircuit/getIndex/getListeners/getArguments/getReturnValue
 
 // async signal emit() return a thenable resolved with resolved values of listeners
 test(() => {

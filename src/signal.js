@@ -18,9 +18,9 @@ export const createSignal = (
 ) => {
   const signal = {}
 
-  let listeners = []
+  const listeners = []
   let emitExecution
-  const isEmitting = () => emitExecution && emitExecution.isPending()
+  const isEmitting = () => Boolean(emitExecution)
 
   const getEmitExecution = () => emitExecution
 
@@ -33,20 +33,26 @@ export const createSignal = (
       lastEmittedArgs = args
     }
 
+    const enabledListeners = []
+    // create a new array in case listeners array gets mutated during emit by listener.remove()
+    // we also push only enabled listener
+    listeners.forEach((listener) => {
+      if (listener.isEnabled()) {
+        enabledListeners.push(listener)
+      }
+    })
+
     const emitExecutionFactory = emitter({
-      // we slice here in case some listener are removed so that
-      // emitExecution listeners array is not mutated
-      listeners: listeners.slice(),
+      listeners: enabledListeners,
       args,
     })
-    emitExecution = emitExecutionFactory.start()
-
-    return emitExecutionFactory.unwrap((fn) =>
-      emitExecution.whenDone((value) => {
+    emitExecution = emitExecutionFactory.fork()
+    return emitExecutionFactory.unwrap((fn) => {
+      emitExecution.start((value) => {
         emitExecution = undefined
         fn(value)
-      }),
-    )
+      })
+    })
   }
 
   let installed = false
@@ -66,29 +72,25 @@ export const createSignal = (
     }
   }
 
-  const removeAllWhileCalling = (fn) => {
-    const beforeCallListeners = listeners.slice()
-    listeners.length = 0
-    uninstall()
+  const disableWhileCalling = (fn) => {
+    const disabledListeners = listeners.map((listener) => {
+      listener.disable()
+      return listener
+    })
+    const someListenerDisabled = disabledListeners.length > 0
+    if (someListenerDisabled) {
+      uninstall()
+    }
 
     fn()
 
-    if (beforeCallListeners.length > 0) {
-      if (listeners.length === 0) {
-        // no listeners added in between
+    if (someListenerDisabled) {
+      if (installed === false) {
         install()
-        listeners = beforeCallListeners
-      } else {
-        // some listener added during fn() execution
-        // no need to reinstall, it has been done by added listener
-        let previousIndex = 0
-        beforeCallListeners.forEach((listener) => {
-          if (listener.isRemoved() === false) {
-            listeners.splice(previousIndex, 0, listener)
-            previousIndex++
-          }
-        })
       }
+      disabledListeners.forEach((disabledListener) => {
+        disabledListener.enable()
+      })
     }
   }
 
@@ -98,28 +100,18 @@ export const createSignal = (
     const listener = {}
 
     let removed = false
-    let removeReason
-    let returnValue
-    let stopped = false
-    let stopReason
+    let disabled = false
 
-    const isRemoved = () => removed
-
-    const remove = (reason) => {
+    const remove = () => {
       if (removed) {
         return false
       }
-
       removed = true
-      removeReason = reason
 
       const index = listeners.indexOf(listener)
-      if (index > -1) {
-        // not being part of listeners is allowed and happens
-        // when remove() called during fn call wrapped by removeAllWhileCalling(fn)
-        // in that case no need to remove it from listeners
-        listeners.splice(index, 1)
-      }
+      // not being inside listeners is normally impossible
+      // if it happens we should throw
+      listeners.splice(index, 1)
 
       if (listeners.length === 0 && installed) {
         uninstall()
@@ -129,34 +121,30 @@ export const createSignal = (
     }
 
     const notify = (...args) => {
-      removeReason = undefined
-      stopped = false
-      stopReason = undefined
-
       if (once) {
         remove("once")
       }
 
-      returnValue = fn(...args)
-      if (returnValue === false) {
-        stopped = true
-        stopReason = "returned false"
-      }
-
-      return {
-        removed,
-        removeReason,
-        stopped,
-        stopReason,
-        value: returnValue,
-      }
+      return fn(...args)
     }
+
+    const disable = () => {
+      disabled = true
+    }
+
+    const enable = () => {
+      disabled = false
+    }
+
+    const isEnabled = () => disabled === false
 
     Object.assign(listener, {
       fn,
       remove,
-      isRemoved,
       notify,
+      isEnabled,
+      disable,
+      enable,
     })
 
     return Object.freeze(listener)
@@ -165,7 +153,7 @@ export const createSignal = (
   const createListenAPI = (createListener) => (fn) => {
     const existingListener = listeners.find((listener) => listener.fn === fn)
     if (existingListener) {
-      return existingListener
+      throw new Error(`there is already a listener for that fn on this signal`)
     }
 
     const listener = createListener(fn)
@@ -191,7 +179,7 @@ export const createSignal = (
     isEmitting,
     emit,
     getEmitExecution,
-    removeAllWhileCalling,
+    disableWhileCalling,
   })
 
   return Object.freeze(signal)

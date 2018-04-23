@@ -114,7 +114,7 @@ You may need to disable a signal: it means prevent listener from being notified 
 import { createSignal } from "@dmail/signal"
 
 let installed = false
-const { listen, emit, removeAllWhileCalling } = createSignal({
+const { listen, emit, disableWhileCalling } = createSignal({
   installer: ({ emit }) => {
     installed = true
     return () => {
@@ -128,7 +128,7 @@ listen(() => {
   notified = true
 })
 
-removeAllWhileCalling(() => {
+disableWhileCalling(() => {
   installed // false
   notified // false
   emit()

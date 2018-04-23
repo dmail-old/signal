@@ -1,9 +1,9 @@
 export const createEmitter = ({ invoke, unwrap }) => {
   return ({ listeners, args }) => {
-    const start = () => {
+    const fork = () => {
       let callback
       let isDone = false
-      let doneValue
+      let stopped = false
 
       const done = (value) => {
         if (isDone) {
@@ -13,8 +13,6 @@ export const createEmitter = ({ invoke, unwrap }) => {
         if (callback) {
           callback(value)
           callback = undefined
-        } else {
-          doneValue = value
         }
       }
 
@@ -34,48 +32,43 @@ export const createEmitter = ({ invoke, unwrap }) => {
             if (isDone) {
               return
             }
-            values.push(result.value)
+            values.push(result)
 
-            if (result.stopped) {
+            if (stopped) {
               done(values)
               return
             }
 
-            if (result.removed === false) {
-              index++
-              visit()
-            }
+            index++
+            visit()
           },
         })
       }
-
-      visit()
 
       const shortcircuit = (value) => {
         done(value)
       }
 
-      const whenDone = (fn) => {
-        if (isDone) {
-          fn(doneValue)
-          doneValue = undefined
-        } else {
-          callback = fn
-        }
+      const stop = () => {
+        stopped = true
       }
 
       return {
         getIndex: () => index,
-        isPending: () => isDone === false,
+        getListeners: () => listeners,
         getArguments: () => args,
         getReturnValue: () => values,
         shortcircuit,
-        whenDone,
+        start: (fn) => {
+          callback = fn
+          visit()
+        },
+        stop,
       }
     }
 
     return {
-      start,
+      fork,
       unwrap,
     }
   }
@@ -93,19 +86,6 @@ export const emitterSerie = createEmitter({
 })
 
 export const emitterSerieThenable = createEmitter({
-  invoke: ({ fn, done }) =>
-    new Promise((resolve) => {
-      resolve(fn())
-    }).then((result) =>
-      Promise.resolve(result.value).then((value) => {
-        done({
-          ...result,
-          value,
-        })
-      }),
-    ),
-  unwrap: (callback) =>
-    new Promise((resolve) => {
-      callback(resolve)
-    }),
+  invoke: ({ fn, done }) => new Promise((resolve) => resolve(fn())).then(done),
+  unwrap: (callback) => new Promise((resolve) => callback(resolve)),
 })
