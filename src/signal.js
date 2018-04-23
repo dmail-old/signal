@@ -3,6 +3,8 @@
 // https://github.com/kriskowal/gtor/blob/master/signals.md
 // https://remysharp.com/2010/07/21/throttling-function-calls
 
+import { emitterSerie, emitterSerieThenable } from "./emitters"
+
 const recursiveMessage = `emit called recursively, its often the sign of an error.
 You can disable his recursive check doing createSignal({ recursed: null })`
 
@@ -11,52 +13,40 @@ export const throwOnRecursed = () => {
   throw new Error(recursiveMessage)
 }
 
-export const stop = (reason) => {
-  return {
-    instruction: "stop",
-    reason,
-  }
-}
+export const createSignal = (
+  { recursed = warnOnRecursed, installer, smart = false, emitter = emitterSerie } = {},
+) => {
+  const signal = {}
 
-const isStopInstruction = (value) => {
-  return typeof value === "object" && value.instruction === "stop"
-}
-
-export const createSignal = ({ recursed = warnOnRecursed, installer, smart = false } = {}) => {
   let listeners = []
+  let emitExecution
+  const isEmitting = () => emitExecution && emitExecution.isPending()
 
-  let previousEmitArgs
-  let dispatching = false
+  const getEmitExecution = () => emitExecution
+
+  let lastEmittedArgs
   const emit = (...args) => {
-    previousEmitArgs = args
-    if (dispatching && recursed) {
+    if (isEmitting() && recursed) {
       recursed()
     }
-
-    // we use dispatching to detect recursive emit() from listener
-    const executions = []
-    let iterationIndex = 0
-    dispatching = true
-    while (iterationIndex < listeners.length) {
-      const listener = listeners[iterationIndex]
-      const result = listener.notify(...args)
-      executions.push(result)
-
-      if (result.stopped) {
-        break
-      }
-
-      // in ['a', 'b', 'c', 'd'], removing 'b' at index 1
-      // when iteration is at index 0, next index must be 1
-      // when iteration is at index 1, next index must be 1
-      // when iteration is at index 2, next index must be 2
-      if (result.removed === false) {
-        iterationIndex++
-      }
+    if (smart) {
+      lastEmittedArgs = args
     }
-    dispatching = false
 
-    return executions
+    const emitExecutionFactory = emitter({
+      // we slice here in case some listener are removed so that
+      // emitExecution listeners array is not mutated
+      listeners: listeners.slice(),
+      args,
+    })
+    emitExecution = emitExecutionFactory.start()
+
+    return emitExecutionFactory.unwrap((fn) =>
+      emitExecution.whenDone((value) => {
+        emitExecution = undefined
+        fn(value)
+      }),
+    )
   }
 
   let installed = false
@@ -64,15 +54,7 @@ export const createSignal = ({ recursed = warnOnRecursed, installer, smart = fal
   const install = () => {
     installed = true
     if (installer) {
-      const getListeners = () => listeners.slice()
-
-      uninstaller = installer({
-        getListeners,
-        emit,
-        // because install & removeAllWhildCalling are interdependant, disable eslint below
-        // eslint-disable-next-line no-use-before-define
-        removeAllWhileCalling,
-      })
+      uninstaller = installer(signal)
     }
   }
 
@@ -159,9 +141,6 @@ export const createSignal = ({ recursed = warnOnRecursed, installer, smart = fal
       if (returnValue === false) {
         stopped = true
         stopReason = "returned false"
-      } else if (isStopInstruction(returnValue)) {
-        stopped = true
-        stopReason = returnValue.reason
       }
 
       return {
@@ -169,7 +148,7 @@ export const createSignal = ({ recursed = warnOnRecursed, installer, smart = fal
         removeReason,
         stopped,
         stopReason,
-        returnValue,
+        value: returnValue,
       }
     }
 
@@ -194,8 +173,8 @@ export const createSignal = ({ recursed = warnOnRecursed, installer, smart = fal
     if (listeners.length === 1 && installed === false) {
       install()
     }
-    if (smart && previousEmitArgs) {
-      listener.notify(...previousEmitArgs)
+    if (smart && lastEmittedArgs) {
+      listener.notify(...lastEmittedArgs)
     }
 
     return listener
@@ -205,11 +184,21 @@ export const createSignal = ({ recursed = warnOnRecursed, installer, smart = fal
 
   const listenOnce = createListenAPI((fn) => createListener({ fn, once: true }))
 
-  return Object.freeze({
+  Object.assign(signal, {
     isListened,
     listen,
     listenOnce,
+    isEmitting,
     emit,
+    getEmitExecution,
     removeAllWhileCalling,
   })
+
+  return Object.freeze(signal)
 }
+
+export const createAsyncSignal = (options = {}) =>
+  createSignal({
+    emitter: emitterSerieThenable,
+    ...options,
+  })

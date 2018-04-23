@@ -4,20 +4,18 @@
 [![build](https://travis-ci.org/dmail/signal.svg?branch=master)](http://travis-ci.org/dmail/signal)
 [![codecov](https://codecov.io/gh/dmail/signal/branch/master/graph/badge.svg)](https://codecov.io/gh/dmail/signal)
 
-A signal can register functions to call when signal emits something
+A signal is an object notifying its listeners when it emits something.
+To resume, it is a low level event emitter.
 
 ```javascript
 import { createSignal } from "@dmail/signal"
 
-const { listen, emit } = createSignal()
+const signal = createSignal()
 
-let value
-listen((arg) => {
-  value = arg
+signal.listen((arg) => {
+  arg === "foo" // true
 })
-emit("foo")
-
-value // "foo"
+signal.emit("foo")
 ```
 
-Check the full [API documentation](./docs/api.md) for more.
+Check the [core api documentation](./docs/api.md) and [advanced api documentation](./docs/api-advanced.md).

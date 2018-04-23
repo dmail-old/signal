@@ -1,6 +1,6 @@
 // https://github.com/cowboy/jquery-throttle-debounce/blob/master/unit/unit.js
 
-import { createSignal, warnOnRecursed, throwOnRecursed, stop } from "./signal.js"
+import { createSignal, warnOnRecursed, throwOnRecursed, createAsyncSignal } from "./signal.js"
 import { createSpy, installSpy } from "@dmail/spy"
 import { test } from "@dmail/test"
 import {
@@ -20,6 +20,7 @@ import {
   matchProperties,
   matchFunction,
   expectPropertiesDeep,
+  expectResolveWith,
 } from "@dmail/expect"
 import assert from "assert"
 
@@ -60,8 +61,8 @@ test(() => {
   const removeListener = signal.listen(() => {}).remove
   const expectedInstallerArgument = matchProperties({
     emit: matchFunction(),
-    getListeners: matchFunction(),
     removeAllWhileCalling: matchFunction(),
+    callWhen: matchFunction(),
   })
 
   return expectChain(
@@ -112,16 +113,8 @@ test(() => {
 // listenOnce indicates why listener was removed
 test(() => {
   const { listenOnce, emit } = createSignal()
-  listenOnce(() => {})
-  return expectPropertiesDeep(emit(), [
-    {
-      removed: true,
-      removeReason: "once",
-      stopped: false,
-      stopReason: undefined,
-      returnValue: undefined,
-    },
-  ])
+  listenOnce(() => "foo")
+  return expectPropertiesDeep(emit(), ["foo"])
 })
 
 // "same function can be listen() and listenOnce() on two different signal
@@ -171,23 +164,6 @@ test(() => {
     () => expectCalledOnceWith(firstSpy, value),
     () => expectCalledOnceWith(secondSpy, value),
   )
-})
-
-// "removeListener(reason)"
-test(() => {
-  const { listen, emit } = createSignal()
-  const { remove } = listen(() => {
-    remove("reason")
-  })
-  return expectPropertiesDeep(emit(), [
-    {
-      removed: true,
-      removeReason: "reason",
-      stopped: false,
-      stopReason: undefined,
-      returnValue: undefined,
-    },
-  ])
 })
 
 // removeListener() called on first listener during emit
@@ -253,32 +229,8 @@ test(() => {
 test(() => {
   const { listen, emit } = createSignal()
   listen(() => false)
-  listen(() => {})
-  return expectPropertiesDeep(emit(), [
-    {
-      removed: false,
-      removeReason: undefined,
-      stopped: true,
-      stopReason: "returned false",
-      returnValue: false,
-    },
-  ])
-})
-
-// stop
-test(() => {
-  const { listen, emit } = createSignal()
-
-  listen(() => stop("foo"))
-  return expectPropertiesDeep(emit(), [
-    {
-      removed: false,
-      removeReason: undefined,
-      stopped: true,
-      stopReason: "foo",
-      returnValue: { instruction: "stop", reason: "foo" },
-    },
-  ])
+  listen(() => "foo")
+  return expectPropertiesDeep(emit(), [false])
 })
 
 // smart option
@@ -320,9 +272,7 @@ test(() => {
     installer,
   })
 
-  const getEmitReturnValues = () => {
-    return emit().map(({ returnValue }) => returnValue)
-  }
+  const getEmitReturnValues = () => emit()
 
   const previousListeners = [listen(() => "a"), listen(() => "b"), listen(() => "c")]
 
@@ -357,5 +307,28 @@ test(() => {
   listen(() => "a")
   removeAllWhileCalling(() => {})
   assert.equal(installed, true)
-  assert.equal(emit()[0].returnValue, "a")
+  assert.equal(emit()[0], "a")
+})
+
+// async signal emit() return a thenable resolved with resolved values of listeners
+test(() => {
+  const { listen, emit } = createAsyncSignal()
+
+  listen((a) => Promise.resolve(a + 1))
+  return expectResolveWith(emit(10), matchProperties([11]))
+})
+
+// async signal listener are executed in serie
+test(() => {
+  const { listen, emit } = createAsyncSignal()
+
+  let resolved = false
+  listen(() =>
+    Promise.resolve().then(() => {
+      resolved = true
+    }),
+  )
+  listen(() => resolved)
+
+  return expectResolveWith(emit(), matchProperties([undefined, true]))
 })

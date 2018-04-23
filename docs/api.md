@@ -1,12 +1,10 @@
-# Signal api
+# Core api
 
 * [createSignal()](#createsignal)
 * [listen(fn)](#listenfn)
 * [isListened()](#islistened)
 * [listenOnce(fn)](#listenoncefn)
 * [emit(...args)](#emitargs)
-* [How to remove a listener?](#how-to-remove-a-listener?)
-* [Advanced examples](./advanced/index.md)
 
 ## createSignal()
 
@@ -37,57 +35,53 @@ hooks.completed.listen(() => console.log("completed"))
 
 ## listen(fn)
 
-Registers a function to call when signal emit is called.
+Registers a function to call when `signal.emit` is called.
 You can listen unlimited amount of function.
 
-```javascript
-import { createSignal } from "@dmail/signal"
-
-const { listen } = createSignal()
-
-listen(() => {})
-listen(() => {})
-```
-
-### listen prevent duplicate listener
-
-listen(fn) returns the same object when it was already called with that fn. It means the following will call fn once
-
-```javascript
-import { createSignal } from "@dmail/signal"
-
-const { listen, emit } = createSignal()
-let callCount = 0
-const fn = () => {
-  callCount++
-}
-
-listen(fn)
-listen(fn)
-emit()
-
-callCount // 1
-```
-
-## isListened()
-
-isListener returns if signal is being listened by some fn
+### Removing a listener
 
 ```javascript
 import { createSignal } from "@dmail/signal"
 
 const { listen, isListened } = createSignal()
 
+const listener = listen(() => {})
+
+listener.remove()
+```
+
+### Duplicate check on listener
+
+Only one listener per fn per signal.
+
+```javascript
+import { createSignal } from "@dmail/signal"
+
+const { listen } = createSignal()
+const fn = () => {}
+const listenerA = listen(fn)
+const listenerB = listen(fn)
+
+listenerA === listenerB // true
+```
+
+## isListened()
+
+isListened returns a boolean indicating if signal is being listened.
+
+```javascript
+import { createSignal } from "@dmail/signal"
+
+const { listen, isListened } = createSignal()
 isListened() // false
 
 listen(() => {})
-
 isListened() // true
 ```
 
 ## listenOnce(fn)
 
-listenOnce register a function that is autoremoved when called.
+listenOnce register a listener autoremoved when notified.
 
 ```javascript
 import { createSignal } from "@dmail/signal"
@@ -106,39 +100,69 @@ callCount // 1
 
 ## emit(...args)
 
-Emit will call listeners with provided args.
+Emit will notify listeners with provided args.
 
 ```javascript
 import { createSignal } from "@dmail/signal"
 
 const { listen, emit } = createSignal()
 
-let sentence = ""
-listen((string) => {
-  sentence += string
-})
+listen((a) => a)
+listen((a) => a + 1)
 
-emit("hello")
-emit("world")
-
-sentence // "helloworld"
+emit(0) // returns [0, 1]
+emit(10) // returns [10, 11]
 ```
 
-## How to remove a listener?
+### emit execution
 
-Listen returns a function you can call to remove that listener
+You can track emit execution using `isEmitting` & `getEmitExecution`
+
+#### isEmitting()
 
 ```javascript
 import { createSignal } from "@dmail/signal"
 
-const { listen, emit } = createSignal()
+const { listen, emit, isEmitting } = createAsyncSignal()
 
-let called = false
-const listener = listen(() => {
-  called = true
+listen(() => {
+  isEmitting() // true
 })
-listener.remove()
+isEmitting() // false
 emit()
-
-called // false
+isEmitting() // false
 ```
+
+#### getEmitExecution()
+
+```javascript
+import { createSignal } from "@dmail/signal"
+
+const { listen, emit, getEmitExecution } = createAsyncSignal()
+
+const listenerA = listen(() => {
+  const emitExecution = getEmitExecution()
+  emitExecution.getIndex() // 0
+  emitExecution.getListeners() // [listenerA, listenerB, listenerC]
+  emitExecution.getArguments() // [10]
+  emitExecution.getReturnValue() // []
+  return "A"
+})
+const listenerB = listen(() => {
+  const emitExecution = getEmitExecution()
+  emitExecution.getIndex() // 1
+  emitExecution.getReturnValue() // ['A']
+  emitExecution.shortcircuit("foo")
+  return "B"
+})
+const listenerC = listen(() => "C")
+
+getEmitExecution() // undefined
+emit(10) // returns 'foo'
+getEmitExecution() // undefined
+```
+
+emitReturnValue is `foo` because of `shortcircuit("foo")` call in `listenerB`.
+Without it emit would have returned `["A", "B", "C"]`.
+
+If you are interested in more advanced signal use case and features check the [advanced api documentation](./api-advanced.md).
