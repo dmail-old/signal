@@ -1,4 +1,38 @@
-export const createEmitter = ({ invoke, unwrap }) => {
+const defaultCreateIterator = ({ listeners }) => {
+  let index = 0
+  return {
+    next: () => {
+      if (index === listeners.length) {
+        return {
+          done: true,
+          value: undefined,
+        }
+      }
+      const listener = listeners[index]
+      index++
+      return {
+        done: false,
+        value: listener,
+      }
+    },
+  }
+}
+
+const defaultInvoke = ({ fn, done }) => done(fn())
+
+const defaultUnwrap = (callback) => {
+  let value
+  callback((arg) => {
+    value = arg
+  })
+  return value
+}
+
+export const createSerialEmitter = ({
+  createIterator = defaultCreateIterator,
+  invoke = defaultInvoke,
+  unwrap = defaultUnwrap,
+}) => {
   return ({ listeners, args }) => {
     const fork = () => {
       let callback
@@ -12,15 +46,18 @@ export const createEmitter = ({ invoke, unwrap }) => {
         callback = undefined
       }
 
+      const iterator = createIterator({ listeners })
+
       let index = 0
       const visit = () => {
-        if (index >= listeners.length) {
+        const nextResult = iterator.next()
+
+        if (nextResult.done) {
           done(returnValue)
           return
         }
 
-        const listener = listeners[index]
-
+        const listener = nextResult.value
         invoke({
           fn: () => listener.notify(...args),
           done: (result) => {
@@ -70,18 +107,9 @@ export const createEmitter = ({ invoke, unwrap }) => {
   }
 }
 
-export const emitterSerie = createEmitter({
-  invoke: ({ fn, done }) => done(fn()),
-  unwrap: (callback) => {
-    let value
-    callback((arg) => {
-      value = arg
-    })
-    return value
-  },
-})
+export const serialEmitter = createSerialEmitter({})
 
-export const emitterSerieThenable = createEmitter({
+export const serialEmitterWithPromise = createSerialEmitter({
   invoke: ({ fn, done }) => new Promise((resolve) => resolve(fn())).then(done),
   unwrap: (callback) => new Promise((resolve) => callback(resolve)),
 })

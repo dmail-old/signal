@@ -3,7 +3,7 @@
 // https://github.com/kriskowal/gtor/blob/master/signals.md
 // https://remysharp.com/2010/07/21/throttling-function-calls
 
-import { emitterSerie, emitterSerieThenable } from "./emitters"
+import { serialEmitter, serialEmitterWithPromise } from "./emitters"
 
 const recursiveMessage = `emit called recursively, its often the sign of an error.
 You can disable his recursive check doing createSignal({ recursed: null })`
@@ -14,7 +14,7 @@ export const throwOnRecursed = () => {
 }
 
 export const createSignal = (
-  { recursed = warnOnRecursed, installer, smart = false, emitter = emitterSerie } = {},
+  { recursed = warnOnRecursed, installer, smart = false, emitter = serialEmitter } = {},
 ) => {
   const signal = {}
 
@@ -193,6 +193,6 @@ export const createSignal = (
 
 export const createAsyncSignal = (options = {}) =>
   createSignal({
-    emitter: emitterSerieThenable,
+    emitter: serialEmitterWithPromise,
     ...options,
   })

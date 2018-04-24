@@ -5,6 +5,7 @@
 * [Installer option](#installer-option)
 * [Disabling](#disable)
 * [createAsyncSignal()](#createasyncsignal)
+* [Emitter option](#emitter-option)
 
 ## Smart option
 
@@ -160,3 +161,42 @@ emit(10).then((values) => {
 ```
 
 Please note how `asyncSignal.emit` returns a thenable resolved to the value of all listener return value.
+
+## Emitter option
+
+You can change the default emit behaviour using `emitter` option.
+It is used internally by `createAsyncSignal` to support listener returning promise.
+An other example below illustrates how you can make your signal notify its listeners in a reverse order.
+
+```javascript
+import { createSignal, createSerialEmitter } from "@dmail/signal"
+
+const reverseSerialEmitter = createSerialEmitter({
+  createIterator: ({ listeners }) => {
+    let index = listeners.length
+    return {
+      next: () => {
+        if (index === 0) {
+          return {
+            done: true,
+            value: undefined,
+          }
+        }
+        index--
+        return {
+          done: false,
+          value: listeners[index],
+        }
+      },
+    }
+  },
+})
+
+const { listen, emit } = createSignal({
+  emitter: reverseSerialEmitter,
+})
+
+listen(() => "a")
+listen(() => "b")
+emit() // ['b', 'a']
+```
