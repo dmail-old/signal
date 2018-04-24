@@ -72,26 +72,32 @@ export const createSignal = (
     }
   }
 
-  const disableWhileCalling = (fn) => {
+  const disableUntil = () => {
     const disabledListeners = listeners.map((listener) => {
       listener.disable()
       return listener
     })
     const someListenerDisabled = disabledListeners.length > 0
-    if (someListenerDisabled) {
+    if (installed) {
       uninstall()
     }
 
-    fn()
-
-    if (someListenerDisabled) {
-      if (installed === false) {
-        install()
+    return () => {
+      if (someListenerDisabled) {
+        if (installed === false && listeners.length > 0) {
+          install()
+        }
+        disabledListeners.forEach((disabledListener) => {
+          disabledListener.enable()
+        })
       }
-      disabledListeners.forEach((disabledListener) => {
-        disabledListener.enable()
-      })
     }
+  }
+
+  const disableWhileCalling = (fn) => {
+    const enable = disableUntil()
+    fn()
+    enable()
   }
 
   const isListened = () => listeners.length > 0
@@ -158,7 +164,7 @@ export const createSignal = (
 
     const listener = createListener(fn)
     listeners.push(listener)
-    if (listeners.length === 1 && installed === false) {
+    if (installed === false) {
       install()
     }
     if (smart && lastEmittedArgs) {

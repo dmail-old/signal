@@ -145,16 +145,16 @@ const listenerA = listen(() => {
   emitExecution.getListeners() // [listenerA, listenerB, listenerC]
   emitExecution.getArguments() // [10]
   emitExecution.getReturnValue() // []
-  return "A"
+  return "a"
 })
 const listenerB = listen(() => {
   const emitExecution = getEmitExecution()
   emitExecution.getIndex() // 1
-  emitExecution.getReturnValue() // ['A']
+  emitExecution.getReturnValue() // ['a']
   emitExecution.shortcircuit("foo")
-  return "B"
+  return "b"
 })
-const listenerC = listen(() => "C")
+const listenerC = listen(() => "c")
 
 getEmitExecution() // undefined
 emit(10) // returns 'foo'
@@ -162,6 +162,6 @@ getEmitExecution() // undefined
 ```
 
 emitReturnValue is `foo` because of `shortcircuit("foo")` call in `listenerB`.
-Without it emit would have returned `["A", "B", "C"]`.
+Without it emit would have returned `["a", "b", "c"]`.
 
 If you are interested in more advanced signal use case and features check the [advanced api documentation](./api-advanced.md).

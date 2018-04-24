@@ -62,11 +62,11 @@ test(() => {
   const signal = createSignal({
     installer,
   })
-  const removeListener = signal.listen(() => {}).remove
+  const listener = signal.listen(() => {})
 
   return expectChain(
     () => expectCalledOnceWith(installer, signal),
-    () => removeListener(),
+    () => listener.remove(),
     () => expectCalledOnceWith(uninstaller),
     () => signal.listen(() => {}),
     () => expectCalledTwiceWith(installer, signal),
@@ -91,6 +91,16 @@ test(() => {
   return expectCalledOnceWithoutArgument(recursedSpy)
 })
 
+test(() => {
+  const { listen, isListened } = createSignal()
+
+  assert.equal(isListened(), false)
+  const listener = listen(() => {})
+  assert.equal(isListened(), true)
+  listener.remove()
+  assert.equal(isListened(), false)
+})
+
 // listenOnce(fn) remove the listener before calling it
 test(() => {
   const { listenOnce, emit } = createSignal()
@@ -105,8 +115,13 @@ test(() => {
 test(() => {
   const { listenOnce } = createSignal()
   const fn = () => {}
-  const listener = listenOnce(fn)
-  return expectTrue(listener === listenOnce(fn))
+  listenOnce(fn)
+  return expectThrowWith(
+    () => listenOnce(fn),
+    matchErrorWith({
+      message: matchString(),
+    }),
+  )
 })
 
 // listenOnce indicates why listener was removed
@@ -229,10 +244,9 @@ test(() => {
   const spy = createSpy()
   const { emit, listen, listenOnce } = createSignal({ smart: true })
   const args = [0, 1]
-  const listener = listen(spy)
+  listen(spy)
 
   return expectChain(
-    () => expectTrue(listener === listen(spy)),
     () => expectNotCalled(spy),
     () => emit(...args),
     () => expectCalledOnceWith(spy, ...args),
@@ -252,7 +266,7 @@ test(() => {
 // disableWhileCalling must prevent listener call before function restore them after
 // and installer/uninstaller are updated accordingly
 test(() => {
-  let installed
+  let installed = false
   const installer = () => {
     installed = true
     return () => {
@@ -281,29 +295,59 @@ test(() => {
   assert.deepEqual(emit(), ["a", "c", "d", "e"])
 })
 
-// TODO: ajouter un test pour vérif que pendant disableWhileCalling
-// il y a toujours une erreur sur duplicate listen(fn)
-
 test(() => {
-  let installed
+  let installed = false
   const installer = () => {
     installed = true
     return () => {
       installed = false
     }
   }
-  const { listen, emit, removeAllWhileCalling } = createSignal({
+  const { listen, emit, disableWhileCalling } = createSignal({
     installer,
   })
 
   listen(() => "a")
-  removeAllWhileCalling(() => {})
+  disableWhileCalling(() => {
+    assert.equal(emit().length, 0)
+  })
   assert.equal(installed, true)
   assert.equal(emit()[0], "a")
 })
 
+// duplicate listener still work during disableWhileCalling
+test(() => {
+  const { listen, disableWhileCalling } = createSignal()
+
+  const fn = () => {}
+
+  listen(fn)
+  disableWhileCalling(() => {
+    assert.throws(() => listen(fn))
+  })
+})
+
+test(() => {
+  let installed = false
+  const installer = () => {
+    installed = true
+    return () => {
+      installed = false
+    }
+  }
+  const { disableWhileCalling, listen } = createSignal({ installer })
+
+  assert.equal(installed, false)
+  disableWhileCalling(() => {
+    assert.equal(installed, false)
+    listen(() => {})
+    assert.equal(installed, true)
+  })
+  assert.equal(installed, true)
+})
+
 // isEmitting
-test.focus(() => {
+test(() => {
   const { isEmitting, listen, emit } = createSignal()
 
   listen(() => isEmitting())
@@ -314,7 +358,45 @@ test.focus(() => {
 })
 
 // getEmitExecution
-// stop/shortcircuit/getIndex/getListeners/getArguments/getReturnValue
+test(() => {
+  const { getEmitExecution, listen, emit } = createSignal()
+
+  let emitExecution
+
+  emitExecution = getEmitExecution()
+  assert.equal(emitExecution, undefined)
+  const listenerA = listen(() => {
+    emitExecution = getEmitExecution()
+    assert.equal(emitExecution.getIndex(), 0)
+    // eslint-disable-next-line no-use-before-define
+    assert.deepEqual(emitExecution.getListeners(), [listenerA, listenerB, listenerC])
+    assert.deepEqual(emitExecution.getReturnValue(), [])
+    assert.deepEqual(emitExecution.getArguments(), [10])
+    return "A"
+  })
+  const listenerB = listen(() => {
+    emitExecution = getEmitExecution()
+    assert.equal(emitExecution.getIndex(), 1)
+    assert.deepEqual(emitExecution.getReturnValue(), ["A"])
+    emitExecution.shortcircuit("foo")
+    assert.deepEqual(emitExecution.getReturnValue(), "foo")
+  })
+  const listenerC = listen(() => "C")
+  assert.deepEqual(emit(10), "foo")
+  emitExecution = getEmitExecution()
+  assert.equal(emitExecution, undefined)
+})
+
+test(() => {
+  const { getEmitExecution, listen, emit } = createSignal()
+
+  listen(() => {
+    getEmitExecution().stop()
+    return "a"
+  })
+  listen(() => "b")
+  assert.deepEqual(emit(), ["a"])
+})
 
 // async signal emit() return a thenable resolved with resolved values of listeners
 test(() => {
@@ -326,7 +408,7 @@ test(() => {
 
 // async signal listener are executed in serie
 test(() => {
-  const { listen, emit } = createAsyncSignal()
+  const { listen, emit } = createAsyncSignal({})
 
   let resolved = false
   listen(() =>

@@ -4,23 +4,18 @@ export const createEmitter = ({ invoke, unwrap }) => {
       let callback
       let isDone = false
       let stopped = false
+      let returnValue = []
 
-      const done = (value) => {
-        if (isDone) {
-          return
-        }
+      const done = () => {
         isDone = true
-        if (callback) {
-          callback(value)
-          callback = undefined
-        }
+        callback(returnValue)
+        callback = undefined
       }
 
       let index = 0
-      const values = []
       const visit = () => {
         if (index >= listeners.length) {
-          done(values)
+          done(returnValue)
           return
         }
 
@@ -32,10 +27,10 @@ export const createEmitter = ({ invoke, unwrap }) => {
             if (isDone) {
               return
             }
-            values.push(result)
+            returnValue.push(result)
 
             if (stopped) {
-              done(values)
+              done(returnValue)
               return
             }
 
@@ -46,6 +41,7 @@ export const createEmitter = ({ invoke, unwrap }) => {
       }
 
       const shortcircuit = (value) => {
+        returnValue = value
         done(value)
       }
 
@@ -57,7 +53,7 @@ export const createEmitter = ({ invoke, unwrap }) => {
         getIndex: () => index,
         getListeners: () => listeners,
         getArguments: () => args,
-        getReturnValue: () => values,
+        getReturnValue: () => returnValue,
         shortcircuit,
         start: (fn) => {
           callback = fn
