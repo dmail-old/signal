@@ -1,6 +1,7 @@
 // https://github.com/cowboy/jquery-throttle-debounce/blob/master/unit/unit.js
 
 import { createSignal, warnOnRecursed, throwOnRecursed, createAsyncSignal } from "./signal.js"
+import { asyncSimultaneousEmitter, reverseSerialEmitter } from "./emitters.js"
 import { createSpy, installSpy } from "@dmail/spy"
 import { test } from "@dmail/test"
 import {
@@ -419,4 +420,51 @@ test(() => {
   listen(() => resolved)
 
   return expectResolveWith(emit(), matchProperties([undefined, true]))
+})
+
+test(() => {
+  const { listen, emit } = createAsyncSignal({
+    emitter: asyncSimultaneousEmitter,
+  })
+  let resolved = false
+  listen(() => {
+    Promise.resolve().then(() => {
+      resolved = true
+    })
+  })
+  listen(() => {
+    return resolved
+  })
+
+  return expectResolveWith(emit(), matchProperties([undefined, false]))
+})
+
+// asyncSimultaneousEmitter + stop
+test(() => {
+  const { listen, emit, getEmitExecution } = createAsyncSignal({
+    emitter: asyncSimultaneousEmitter,
+  })
+  let resolved = false
+  listen(() => {
+    Promise.resolve().then(() => {
+      resolved = true
+    })
+  })
+  listen(() => {
+    getEmitExecution().stop()
+    return resolved
+  })
+
+  return expectResolveWith(emit(), matchProperties([undefined, false]))
+})
+
+// reverseSerialEmitter
+test(() => {
+  const { listen, emit } = createAsyncSignal({
+    emitter: reverseSerialEmitter,
+  })
+
+  listen(() => "a")
+  listen(() => "b")
+  assert.deepEqual(emit(), ["b", "a"])
 })
