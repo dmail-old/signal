@@ -21,6 +21,7 @@ import {
   matchProperties,
   expectPropertiesDeep,
   expectResolveWith,
+  expectRejectWith,
 } from "@dmail/expect"
 import assert from "assert"
 
@@ -422,21 +423,60 @@ test(() => {
   return expectResolveWith(emit(), matchProperties([undefined, true]))
 })
 
+// emit rejected when throw in a listener fn
+test(() => {
+  const { listen, emit } = createAsyncSignal()
+
+  listen(() => {
+    // eslint-disable-next-line no-throw-literal
+    throw 1
+  })
+
+  return expectRejectWith(emit(), 1)
+})
+
+// emit reject when listener return rejected promise
+test(() => {
+  const { listen, emit } = createAsyncSignal()
+
+  listen(() => Promise.reject(1))
+
+  return expectRejectWith(emit(), 1)
+})
+
+// thanks to rejectedFlagger resolved value can not be taken for rejected value
+test(() => {
+  const { listen, emit, getEmitExecution } = createAsyncSignal()
+
+  listen((a) => {
+    getEmitExecution().shortcircuit(a)
+  })
+
+  return expectChain(
+    () => expectResolveWith(emit(null), null),
+    () => expectResolveWith(emit(undefined), undefined),
+    () => expectResolveWith(emit(1), 1),
+    () => expectResolveWith(emit({}), matchProperties({})),
+    () => expectResolveWith(emit({ flag: true }), matchProperties({ flag: true })),
+  )
+})
+
 test(() => {
   const { listen, emit } = createAsyncSignal({
     emitter: asyncSimultaneousEmitter,
   })
   let resolved = false
   listen(() => {
-    Promise.resolve().then(() => {
+    return Promise.resolve().then(() => {
       resolved = true
+      return 1
     })
   })
   listen(() => {
     return resolved
   })
 
-  return expectResolveWith(emit(), matchProperties([undefined, false]))
+  return expectResolveWith(emit(), matchProperties([1, false]))
 })
 
 // asyncSimultaneousEmitter + stop
@@ -446,8 +486,9 @@ test(() => {
   })
   let resolved = false
   listen(() => {
-    Promise.resolve().then(() => {
+    return Promise.resolve().then(() => {
       resolved = true
+      return 1
     })
   })
   listen(() => {
@@ -455,7 +496,59 @@ test(() => {
     return resolved
   })
 
-  return expectResolveWith(emit(), matchProperties([undefined, false]))
+  const expected = []
+  expected[1] = false
+
+  return expectResolveWith(emit(), matchProperties(expected))
+})
+
+const createPromiseAndResolve = () => {
+  let resolve
+  const promise = new Promise((arg) => {
+    resolve = arg
+  })
+  return { promise, resolve }
+}
+
+// async simultaneous + stops always awaits stopped return value
+test(() => {
+  const { listen, emit, getEmitExecution } = createAsyncSignal({
+    emitter: asyncSimultaneousEmitter,
+  })
+
+  const first = createPromiseAndResolve()
+  const second = createPromiseAndResolve()
+
+  listen(() => {
+    return first.promise
+  })
+  listen(() => {
+    getEmitExecution().stop()
+    return second.promise
+  })
+
+  const emitPromise = emit()
+
+  first.resolve(1)
+
+  return expectResolveWith(
+    first.promise.then(() => {
+      second.resolve(2)
+      return emitPromise
+    }),
+    matchProperties([1, 2]),
+  )
+})
+
+// asyncSimultaneous + reject
+test(() => {
+  const { listen, emit } = createAsyncSignal({
+    emitter: asyncSimultaneousEmitter,
+  })
+
+  listen(() => Promise.reject(1))
+
+  return expectRejectWith(emit(), 1)
 })
 
 // reverseSerialEmitter
