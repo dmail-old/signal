@@ -2,6 +2,8 @@
 
 import { createSignal, warnOnRecursed, throwOnRecursed, createAsyncSignal } from "./signal.js"
 import { asyncSimultaneousEmitter, reverseSerialEmitter } from "./emitters.js"
+import { createEmitter } from "./emitter/createEmitter.js"
+import { someAsyncListenerResolvesWith } from "./emitter/visitors.js"
 import { createSpy, installSpy } from "@dmail/spy"
 import { test } from "@dmail/test"
 import {
@@ -18,6 +20,7 @@ import {
   expectThrowWith,
   matchErrorWith,
   matchString,
+  matchObject,
   matchProperties,
   expectPropertiesDeep,
   expectResolveWith,
@@ -85,14 +88,18 @@ test(() => {
   listen(() => {
     if (emitted === false) {
       emitted = true
-      emit()
+      emit(10)
     }
   })
   emit()
 
-  return expectCalledOnceWithoutArgument(recursedSpy)
+  return expectCalledOnceWith(
+    recursedSpy,
+    matchProperties({ emitExecution: matchObject(), args: matchProperties([10]) }),
+  )
 })
 
+// isListened
 test(() => {
   const { listen, isListened } = createSignal()
 
@@ -380,11 +387,10 @@ test(() => {
     emitExecution = getEmitExecution()
     assert.equal(emitExecution.getIndex(), 1)
     assert.deepEqual(emitExecution.getReturnValue(), ["A"])
-    emitExecution.shortcircuit("foo")
-    assert.deepEqual(emitExecution.getReturnValue(), "foo")
+    return "B"
   })
   const listenerC = listen(() => "C")
-  assert.deepEqual(emit(10), "foo")
+  assert.deepEqual(emit(10), ["A", "B", "C"])
   emitExecution = getEmitExecution()
   assert.equal(emitExecution, undefined)
 })
@@ -444,23 +450,6 @@ test(() => {
   return expectRejectWith(emit(), 1)
 })
 
-// thanks to rejectedFlagger resolved value can not be taken for rejected value
-test(() => {
-  const { listen, emit, getEmitExecution } = createAsyncSignal()
-
-  listen((a) => {
-    getEmitExecution().shortcircuit(a)
-  })
-
-  return expectChain(
-    () => expectResolveWith(emit(null), null),
-    () => expectResolveWith(emit(undefined), undefined),
-    () => expectResolveWith(emit(1), 1),
-    () => expectResolveWith(emit({}), matchProperties({})),
-    () => expectResolveWith(emit({ flag: true }), matchProperties({ flag: true })),
-  )
-})
-
 test(() => {
   const { listen, emit } = createAsyncSignal({
     emitter: asyncSimultaneousEmitter,
@@ -495,11 +484,9 @@ test(() => {
     getEmitExecution().stop()
     return resolved
   })
+  listen(() => 3)
 
-  const expected = []
-  expected[1] = false
-
-  return expectResolveWith(emit(), matchProperties(expected))
+  return expectResolveWith(emit(), matchProperties([1, false]))
 })
 
 const createPromiseAndResolve = () => {
@@ -540,6 +527,15 @@ test(() => {
   )
 })
 
+// asyncSimultaneous empty
+test(() => {
+  const { emit } = createAsyncSignal({
+    emitter: asyncSimultaneousEmitter,
+  })
+
+  return expectResolveWith(emit(), matchProperties([]))
+})
+
 // asyncSimultaneous + reject
 test(() => {
   const { listen, emit } = createAsyncSignal({
@@ -560,4 +556,20 @@ test(() => {
   listen(() => "a")
   listen(() => "b")
   assert.deepEqual(emit(), ["b", "a"])
+})
+
+// someAsyncListenerReturns
+test(() => {
+  const { listen, emit } = createAsyncSignal({
+    emitter: createEmitter({
+      visitor: someAsyncListenerResolvesWith((value) => value === "foo"),
+    }),
+  })
+
+  listen((v) => v)
+
+  return expectChain(
+    () => expectResolveWith(emit("bar"), false),
+    () => expectResolveWith(emit("foo"), true),
+  )
 })

@@ -1,6 +1,6 @@
 export * from "./src/signal.js"
 export * from "./src/emitters.js"
-export * from "./src/emitter/emitterFactory.js"
+export * from "./src/emitter/createEmitter.js"
 export * from "./src/emitter/iterators.js"
 export * from "./src/emitter/visitors.js"
 

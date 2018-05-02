@@ -27,7 +27,7 @@ export const createSignal = (
   let lastEmittedArgs
   const emit = (...args) => {
     if (isEmitting() && recursed) {
-      recursed()
+      recursed({ emitExecution, args })
     }
     if (smart) {
       lastEmittedArgs = args
@@ -47,11 +47,8 @@ export const createSignal = (
       args,
     })
     emitExecution = emitExecutionFactory.fork()
-    return emitExecutionFactory.unwrap((fn) => {
-      emitExecution.start((value) => {
-        emitExecution = undefined
-        fn(value)
-      })
+    return emitExecution.start(() => {
+      emitExecution = undefined
     })
   }
 
