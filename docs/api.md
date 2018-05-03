@@ -151,17 +151,17 @@ const listenerB = listen(() => {
   const emitExecution = getEmitExecution()
   emitExecution.getIndex() // 1
   emitExecution.getReturnValue() // ['a']
-  emitExecution.shortcircuit("foo")
+  emitExecution.stop()
   return "b"
 })
 const listenerC = listen(() => "c")
 
 getEmitExecution() // undefined
-emit(10) // returns 'foo'
+emit(10) // returns ["a", "b"]
 getEmitExecution() // undefined
 ```
 
-emitReturnValue is `foo` because of `shortcircuit("foo")` call in `listenerB`.
+emitReturnValue is `["a", "b"]` because of `emitExecution.stop()` call in `listenerB`.
 Without it emit would have returned `["a", "b", "c"]`.
 
 If you are interested in more advanced signal use case and features check the [advanced api documentation](./api-advanced.md).

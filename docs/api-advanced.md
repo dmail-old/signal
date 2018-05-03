@@ -35,7 +35,8 @@ import { createSignal } from "@dmail/signal"
 
 const { listen, emit } = createSignal()
 
-listen(emit) // logs a warning then throw because infinite recursion
+listen(emit)
+emit() // logs a warning then throw because infinite recursion
 ```
 
 ### Disable recursed option
@@ -47,7 +48,8 @@ import { createSignal } from "@dmail/signal"
 
 const { listen, emit } = createSignal({ recursed: null })
 
-listen(emit) // throw because infinite recursion without warning
+listen(emit)
+emit() // throw because infinite recursion without warning
 ```
 
 ### Custom recursed option
@@ -57,13 +59,19 @@ You can have your own recursed function
 ```javascript
 import { createSignal } from "@dmail/signal"
 
-const recursed = () => {
-  throw new Error("signal must not be recursed")
+const recursed = ({ emitExecution, args }) => {
+  throw new Error(`signal recursed with ${args} while emitting ${emitExecution.getArguments()}`)
 }
 const { listen, emit } = createSignal({ recursed })
 
-listen(emit) // throw with signal must not be recursed
+listen(() => emit("second"))
+emit("first") // throw error "signal recursed with second while emitting first"
 ```
+
+recursed receive `{ emitExecution, args }`.
+
+* emitExecution is the current emit execution, documentation available [here](../api.md#getemitexecution)
+* args are the arguments passed to the recursed emit
 
 ## Installer option
 
@@ -91,7 +99,7 @@ remove()
 installed // false
 ```
 
-### Installing a DOM event listener
+### Installer example: wrapper around DOM click event
 
 A signal may be used as a wrapper around native `addEventListener('click')/removeEventListener('click')` browser apis.
 
