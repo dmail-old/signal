@@ -27,7 +27,8 @@ value // 'foo'
 
 ## Recursed option
 
-When a signal is recursed it calls a function.
+A signal is considered as recursed when `emit` is called while an other `emit` is still notifying his listeners.
+The recursed option is a function that will be called when the signal is recursed.
 The default function logs a warning in the console.
 
 ```javascript
@@ -39,9 +40,9 @@ listen(emit)
 emit() // logs a warning then throw because infinite recursion
 ```
 
-### Disable recursed option
+### How to ignore a recursed signal
 
-You can disable this behaviour by passing null/undefined as shown below
+You can choose to do nothing on recursed signal by passing null/undefined as shown below
 
 ```javascript
 import { createSignal } from "@dmail/signal"
@@ -52,7 +53,7 @@ listen(emit)
 emit() // throw because infinite recursion without warning
 ```
 
-### Custom recursed option
+### How to call custom function when a signal is recursed
 
 You can have your own recursed function
 
@@ -71,7 +72,7 @@ emit("first") // throw error "signal recursed with second while emitting first"
 recursed receive `{ emitExecution, args }`.
 
 * emitExecution is the current emit execution, documentation available [here](../api.md#getemitexecution)
-* args are the arguments passed to the recursed emit
+* args are the arguments passed when emit was called
 
 ## Installer option
 
@@ -117,7 +118,7 @@ Please note how installer receives signal object as argument
 
 ## Disable
 
-You may need to disable a signal: it means prevent listener from being notified and installer side effects from hapenning. You can do temporarily during a function execution as shown below.
+You may need to disable a signal: it means prevent listener from being notified and installer side effects from hapenning. You can disable a signal temporarily during a function execution as shown below.
 
 ```javascript
 import { createSignal } from "@dmail/signal"

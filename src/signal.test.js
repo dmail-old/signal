@@ -1,9 +1,11 @@
 // https://github.com/cowboy/jquery-throttle-debounce/blob/master/unit/unit.js
 
 import { createSignal, warnOnRecursed, throwOnRecursed, createAsyncSignal } from "./signal.js"
-import { asyncSimultaneousEmitter, reverseSerialEmitter } from "./emitters.js"
-import { createEmitter } from "./emitter/createEmitter.js"
-import { someAsyncListenerResolvesWith } from "./emitter/visitors.js"
+import {
+  asyncSimultaneousEmitter,
+  reverseSerialEmitter,
+  someAsyncListenerResolvesWith,
+} from "./emitter/index.js"
 import { createSpy, installSpy } from "@dmail/spy"
 import { test } from "@dmail/test"
 import {
@@ -561,9 +563,11 @@ test(() => {
 // someAsyncListenerReturns
 test(() => {
   const { listen, emit } = createAsyncSignal({
-    emitter: createEmitter({
-      visitor: someAsyncListenerResolvesWith((value) => value === "foo"),
-    }),
+    emitter: () => {
+      return {
+        visitor: someAsyncListenerResolvesWith((value) => value === "foo"),
+      }
+    },
   })
 
   listen((v) => v)

@@ -161,7 +161,7 @@ emit(10) // returns ["a", "b"]
 getEmitExecution() // undefined
 ```
 
-emitReturnValue is `["a", "b"]` because of `emitExecution.stop()` call in `listenerB`.
+`emit()` returns `["a", "b"]` because of `emitExecution.stop()` call in `listenerB`.
 Without it emit would have returned `["a", "b", "c"]`.
 
 If you are interested in more advanced signal use case and features check the [advanced api documentation](./api-advanced.md).

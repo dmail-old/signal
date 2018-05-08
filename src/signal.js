@@ -3,7 +3,7 @@
 // https://github.com/kriskowal/gtor/blob/master/signals.md
 // https://remysharp.com/2010/07/21/throttling-function-calls
 
-import { serialEmitter, asyncSerialEmitter } from "./emitters"
+import { serialEmitter, asyncSerialEmitter, leftToRightCreateIterator } from "./emitter/index.js"
 
 const recursiveMessage = `emit called recursively, its often the sign of an error.
 You can disable his recursive check doing createSignal({ recursed: null })`
@@ -42,14 +42,68 @@ export const createSignal = (
       }
     })
 
-    const emitExecutionFactory = emitter({
-      listeners: enabledListeners,
-      args,
+    emitExecution = emitter({ listeners: enabledListeners })
+    const {
+      visitor,
+      iterator = leftToRightCreateIterator({ listeners: enabledListeners }),
+    } = emitExecution
+
+    let stopped = false
+    let index = 0
+    let returnValue
+
+    const start = (value) => {
+      returnValue = value
+
+      const next = () => {
+        if (stopped) {
+          return { done: true, value: undefined }
+        }
+
+        const result = iterator.next()
+        if (result.done) {
+          return result
+        }
+        return {
+          done: false,
+          value: () => {
+            const returnValue = result.value.notify(...args)
+            index++
+            return returnValue
+          },
+        }
+      }
+
+      const end = (value) => {
+        returnValue = value
+        emitExecution = undefined
+        return value
+      }
+
+      return { next, end }
+    }
+
+    const stop = () => {
+      stopped = true
+    }
+
+    const getIndex = () => index
+
+    const getListeners = () => enabledListeners
+
+    const getArguments = () => args
+
+    const getReturnValue = () => returnValue
+
+    Object.assign(emitExecution, {
+      stop,
+      getIndex,
+      getListeners,
+      getArguments,
+      getReturnValue,
     })
-    emitExecution = emitExecutionFactory.fork()
-    return emitExecution.start(() => {
-      emitExecution = undefined
-    })
+
+    return visitor({ start })
   }
 
   let installed = false
