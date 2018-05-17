@@ -1,25 +1,28 @@
-# Core api
+# Core API
 
 * [createSignal()](#createsignal)
-* [listen(fn)](#listenfn)
 * [isListened()](#islistened)
+* [listen(fn)](#listenfn)
 * [listenOnce(fn)](#listenoncefn)
 * [emit(...args)](#emitargs)
 
 ## createSignal()
 
+return methods to add function and call them on demand.
+
 ```javascript
 import { createSignal } from "@dmail/signal"
 
-const doSomethingUsingSignal = () => {
+const createTimer = (ms = 0) => {
   const completed = createSignal()
   const cancelled = createSignal()
 
-  const id = setTimeout(completed.emit, 10)
+  const id = setTimeout(completed.emit, ms)
+
   const cancel = () => {
     if (id) {
-      id = null
       clearTimeout(id)
+      id = null
       cancelled.emit()
     }
   }
@@ -27,10 +30,12 @@ const doSomethingUsingSignal = () => {
   return { completed, cancelled, cancel }
 }
 
-const hooks = doSomethingUsingSignal()
+const timer = createTimer(10)
 
-hooks.cancelled.listen(() => console.log("cancelled"))
-hooks.completed.listen(() => console.log("completed"))
+timer.cancelled.listen(() => console.log("cancelled"))
+timer.completed.listen(() => console.log("completed"))
+
+timer.cancel() // logs 'cancelled' in the console
 ```
 
 ## listen(fn)
@@ -38,12 +43,28 @@ hooks.completed.listen(() => console.log("completed"))
 Registers a function to call when `signal.emit` is called.
 You can listen unlimited amount of function.
 
-### Removing a listener
+## isListened()
+
+isListened returns a boolean indicating if signal is being listened.
 
 ```javascript
 import { createSignal } from "@dmail/signal"
 
 const { listen, isListened } = createSignal()
+
+isListened() // false
+
+listen(() => {})
+
+isListened() // true
+```
+
+### Removing a listener
+
+```javascript
+import { createSignal } from "@dmail/signal"
+
+const { listen } = createSignal()
 
 const listener = listen(() => {})
 
@@ -62,20 +83,6 @@ const fn = () => {}
 
 listen(fn)
 listen(fn) // throw with `there is already a listener for that fn on this signal`
-```
-
-## isListened()
-
-isListened returns a boolean indicating if signal is being listened.
-
-```javascript
-import { createSignal } from "@dmail/signal"
-
-const { listen, isListened } = createSignal()
-isListened() // false
-
-listen(() => {})
-isListened() // true
 ```
 
 ## listenOnce(fn)
@@ -99,7 +106,7 @@ callCount // 1
 
 ## emit(...args)
 
-Emit will notify listeners with provided args.
+Emit notify listeners with provided args.
 
 ```javascript
 import { createSignal } from "@dmail/signal"

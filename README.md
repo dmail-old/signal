@@ -4,18 +4,46 @@
 [![build](https://travis-ci.org/dmail/signal.svg?branch=master)](http://travis-ci.org/dmail/signal)
 [![codecov](https://codecov.io/gh/dmail/signal/branch/master/graph/badge.svg)](https://codecov.io/gh/dmail/signal)
 
-A signal is an object notifying its listeners when it emits something.
-To resume, it is a low level event emitter.
+> Manage a list of functions to call on demand
+
+## Installing / Getting started
+
+```shell
+npm install @dmail/signal
+```
 
 ```javascript
 import { createSignal } from "@dmail/signal"
 
+// create a signal
 const signal = createSignal()
 
+// register a function to call on demand
 signal.listen((arg) => {
-  arg === "foo" // true
+  console.log(arg)
 })
-signal.emit("foo")
+
+// call function registered on that signal
+signal.emit("Hello world")
 ```
 
-Check the [core api documentation](./docs/api.md) and [advanced api documentation](./docs/api-advanced.md).
+Executing above code logs "Hello world" in the console
+
+## Tests
+
+```shell
+npm test
+```
+
+## Style guide
+
+Prettier and eslint are used to ensure code style and format
+
+## API reference
+
+* [core api documentation](./docs/api.md)
+* [advanced api documentation](./docs/api-advanced.md)
+
+## Licensing
+
+MIT
