@@ -41,8 +41,7 @@ Prettier and eslint are used to ensure code style and format
 
 ## API reference
 
-* [core api documentation](./docs/api.md)
-* [advanced api documentation](./docs/api-advanced.md)
+* [api documentation](./docs/api.md)
 
 ## Licensing
 
