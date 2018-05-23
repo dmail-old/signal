@@ -15,25 +15,16 @@ npm install @dmail/signal
 ```javascript
 import { createSignal } from "@dmail/signal"
 
-// create a signal
 const signal = createSignal()
 
-// register a function to call on demand
 signal.listen((arg) => {
   console.log(arg)
 })
 
-// call function registered on that signal
 signal.emit("Hello world")
 ```
 
-Executing above code logs "Hello world" in the console
-
-## Tests
-
-```shell
-npm test
-```
+Executing above code logs `"Hello world"` in the console
 
 ## Style guide
 
