@@ -344,4 +344,4 @@ Please note how `asyncSignal.emit` returns a thenable resolved to the value of a
 ## Emitter option
 
 `emitter` gives full control on how listener are notified by calls to `emit`.
-For instance `createAsyncSignal` is using `asyncSerialEmitter` exported in [src/emitter/index.js](../src/emitter/index.js).  
+For instance `createAsyncSignal` is using `asyncSerialEmitter` exported in [src/emitter/index.js](../src/emitter/index.js).
