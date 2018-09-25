@@ -1,0 +1,30 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "type": "node",
+      "request": "launch",
+      "name": "Launch with node",
+      "program": "${file}"
+    },
+    {
+      "name": "Launch from dist",
+      "type": "node",
+      "request": "launch",
+      "protocol": "inspector",
+      "preLaunchTask": "compile", // ensure dist is fresh (compile before running)
+      "args": ["${workspaceRoot}/dist/${relativeFile}"],
+      "autoAttachChildProcesses": true,
+      "sourceMaps": true,
+      "sourceMapPathOverrides": {
+        "/*": "${workspaceRoot}/*"
+      },
+      "skipFiles": [
+        // skip node modules
+        "node_modules/**",
+        // skip node internals
+        "<node_internals>/**/*.js"
+      ]
+    }
+  ]
+}
