@@ -17,26 +17,24 @@
 		"index.js"
 	],
 	"engines": {
-		"node": ">=8.6.0"
+		"node": ">=8.0.0"
 	},
 	"dependencies": {},
 	"devDependencies": {
-		"@dmail/project-prettier-config": "github:dmail/project-prettier-config",
-		"prettier": "1.9.1",
-		"@dmail/project-eslint-config": "github:dmail/project-eslint-config",
-		"eslint": "5.1.0",
-		"eslint-plugin-import": "2.6.0",
-		"babel-eslint": "9.0.0",
-		"@dmail/project-babel": "github:dmail/project-babel",
-		"promise-sequential": "1.1.1",
-		"@babel/core": "7.1.0",
 		"@dmail/expect": "2.9.0",
-		"@dmail/prettiest": "github:dmail/prettiest",
-		"@dmail/shared-config": "7.0.0",
 		"@dmail/spy": "1.0.1",
 		"@dmail/test": "6.0.0",
 		"codecov": "2.3.0",
 		"nyc": "11.2.1",
+		"@dmail/project-eslint-config": "github:dmail/project-eslint-config",
+		"eslint": "5.1.0",
+		"eslint-plugin-import": "2.6.0",
+		"babel-eslint": "9.0.0",
+		"@dmail/project-prettier-config": "github:dmail/project-prettier-config",
+		"@dmail/prettiest": "github:dmail/prettiest",
+		"prettier": "1.9.1",
+		"@dmail/project-structure": "github:dmail/project-structure",
+		"@dmail/project-structure-compile-babel": "github:dmail/project-structure-compile-babel",
 		"rimraf": "2.6.2"
 	},
 	"scripts": {
