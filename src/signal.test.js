@@ -250,10 +250,10 @@ test(() => {
   return expectChain(() => expectTrue(remove()), () => expectFalse(remove()))
 })
 
-// smart option
+// smart once option
 test(() => {
   const spy = createSpy()
-  const { emit, listen, listenOnce } = createSignal({ smart: true })
+  const { emit, listen, listenOnce } = createSignal({ smart: "once" })
   const args = [0, 1]
   listen(spy)
 

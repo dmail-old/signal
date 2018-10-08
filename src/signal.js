@@ -24,13 +24,16 @@ export const createSignal = (
 
   const getEmitExecution = () => emitExecution
 
-  let lastEmittedArgs
+  const smartMemory = []
   const emit = (...args) => {
     if (isEmitting() && recursed) {
       recursed({ emitExecution, args })
     }
-    if (smart) {
-      lastEmittedArgs = args
+    if (smart === "once") {
+      smartMemory.length = 0
+      smartMemory.push(args)
+    } else if (smart === true) {
+      smartMemory.push(args)
     }
 
     const enabledListeners = []
@@ -218,8 +221,10 @@ export const createSignal = (
     if (installed === false) {
       install()
     }
-    if (smart && lastEmittedArgs) {
-      listener.notify(...lastEmittedArgs)
+    if (smart) {
+      smartMemory.forEach((previousArgs) => {
+        previousArgs.notify(...previousArgs)
+      })
     }
 
     return listener
@@ -235,6 +240,7 @@ export const createSignal = (
     listenOnce,
     isEmitting,
     emit,
+    smartMemory,
     getEmitExecution,
     disableWhileCalling,
   })

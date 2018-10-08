@@ -188,11 +188,12 @@ import { createSignal } from "@dmail/signal"
 const { listen, emit } = createSignal({ smart: true })
 
 emit("foo")
-let value
+emit("bar")
+const values = []
 listen((arg) => {
-  value = arg
+  values.push(arg)
 })
-value // 'foo'
+values // ['foo', 'bar']
 ```
 
 ## Recursed option
