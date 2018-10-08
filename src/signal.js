@@ -223,7 +223,7 @@ export const createSignal = (
     }
     if (smart) {
       smartMemory.forEach((previousArgs) => {
-        previousArgs.notify(...previousArgs)
+        listener.notify(...previousArgs)
       })
     }
 
